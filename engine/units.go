@@ -23,10 +23,13 @@ var CalcEnv = map[string]interface{}{
 	"tan":   math.Tan,
 	"hypot": math.Hypot,
 	"pi":    math.Pi,
-	// Roots / rounding
+	// Roots / rounding / logs
 	"sqrt":  math.Sqrt,
 	"abs":   math.Abs,
 	"log2":  math.Log2,
+	"log":   math.Log,
+	"log10": math.Log10,
+	"pow":   math.Pow,
 	"round": math.Round,
 	"floor": math.Floor,
 	"ceil":  math.Ceil,
