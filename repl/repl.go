@@ -71,12 +71,11 @@ func Run() {
 	defer line.Close()
 	line.SetCtrlCAborts(true)
 
-	fmt.Println("wrkr — context-aware calculator")
-	fmt.Println("type 'help all' for reference, 'exit' to quit")
+	fmt.Println("wrkr — type 'help all' for reference, 'exit' to quit")
 
 	for {
 		fmt.Println()
-		rawInput, err := line.Prompt("> ")
+		rawInput, err := line.Prompt(modePrompt())
 		if err != nil {
 			if err == liner.ErrPromptAborted || err == io.EOF {
 				return
@@ -119,7 +118,10 @@ func Run() {
 			} else {
 				fmt.Println("User-defined variables:")
 				for k, v := range engine.UserVars {
-					fmt.Printf("  %-12s = %v\n", k, v)
+					fmt.Printf("  %s  =  %s\n",
+						styleVarName(fmt.Sprintf("%-12s", k)),
+						boldWhite(engine.FormatDecimal(v.(float64))),
+					)
 				}
 			}
 			continue
@@ -128,7 +130,7 @@ func Run() {
 		// ── Mode query / switch ───────────────────────────────────────────────
 
 		if lowerInput == "mode" {
-			fmt.Printf("Current output mode: %s\n", engine.CurrentMode)
+			fmt.Printf("Current output mode: %s\n", colorMode(engine.CurrentMode))
 			continue
 		}
 		modeCmd := lowerInput
@@ -137,7 +139,7 @@ func Run() {
 		}
 		if newMode, ok := engine.ModeMap[modeCmd]; ok {
 			engine.CurrentMode = newMode
-			fmt.Printf("Output mode → %s\n", engine.CurrentMode)
+			fmt.Printf("Output mode → %s\n", colorMode(newMode))
 			continue
 		}
 
@@ -146,7 +148,7 @@ func Run() {
 		if varName, exprStr, ok := engine.TryParseAssignment(rawInput); ok {
 			// Guard reserved keywords.
 			if _, reserved := engine.ModeMap[strings.ToLower(varName)]; reserved {
-				fmt.Printf("Error: '%s' is a reserved mode keyword.\n", varName)
+				fmt.Println(styleError("Error: '" + varName + "' is a reserved mode keyword."))
 				continue
 			}
 
@@ -157,19 +159,22 @@ func Run() {
 
 			prog, compErr := expr.Compile(ast, expr.Env(env))
 			if compErr != nil {
-				fmt.Printf("Error in assignment: %v\n", compErr)
+				fmt.Println(styleError("Error in assignment: " + compErr.Error()))
 				continue
 			}
 			res, runErr := expr.Run(prog, env)
 			if runErr != nil {
-				fmt.Printf("Error: %v\n", runErr)
+				fmt.Println(styleError("Error: " + runErr.Error()))
 				continue
 			}
 
 			val := toFloat64(res)
 			engine.StoreVar(varName, val)
-			validTokens = engine.GetValidTokens() // refresh so autocorrect knows the new var
-			fmt.Printf("%s = %s\n", varName, engine.FormatDecimal(val))
+			validTokens = engine.GetValidTokens()
+			fmt.Printf("%s  =  %s\n",
+				styleVarName(varName),
+				boldWhite(engine.FormatDecimal(val)),
+			)
 			continue
 		}
 
@@ -181,44 +186,45 @@ func Run() {
 		cleanedInput = strings.ReplaceAll(cleanedInput, " into ", " to ")
 		cleanedInput = strings.ReplaceAll(cleanedInput, " in to ", " to ")
 
-		// 2. Remember whether a data-size unit is present (for Smart Hint).
+		// 2. Size unit context for Smart Hint.
 		sizeCtx := engine.InputSizeUnitContext(cleanedInput)
 
-		// 2b. If this is a plain "X unit to targetUnit" conversion, record the
-		// target so we can bypass the current output mode and label correctly.
+		// 2b. Detect conversion target to bypass output mode.
 		convTarget := engine.DetectConversionTarget(cleanedInput)
 
-		// 3. Autocorrect: suggest the fix only if it actually compiles.
+		// 3. Autocorrect: suggest only if the fix compiles.
 		sanitizedInput, changed := engine.SanitizeInput(cleanedInput, validTokens)
 		if changed {
 			testAST := engine.BuildASTString(sanitizedInput)
 			testEnv := engine.GetMergedEnv()
 			_, testErr := expr.Compile(testAST, expr.Env(testEnv))
 			if testErr == nil {
-				fmt.Printf("Did you mean: %s? (y/n): ", sanitizedInput)
+				fmt.Printf("%s %s? (y/n): ",
+					styleAutocorrect("Did you mean:"),
+					styleAutocorrect(sanitizedInput),
+				)
 				confirmRaw, _ := line.Prompt("")
 				confirm := strings.ToLower(strings.TrimSpace(confirmRaw))
 				if confirm != "y" && confirm != "yes" {
 					sanitizedInput = cleanedInput
 				}
 			} else {
-				// The suggested fix is mathematical garbage — silently discard it.
 				sanitizedInput = cleanedInput
 			}
 		}
 
-		// 4. Build AST string and evaluate.
+		// 4. Build AST and evaluate.
 		processedInput := engine.BuildASTString(sanitizedInput)
 		env := engine.GetMergedEnv()
 
 		program, compErr := expr.Compile(processedInput, expr.Env(env))
 		if compErr != nil {
-			fmt.Println("Error: Could not parse expression.")
+			fmt.Println(styleError("Error: Could not parse expression."))
 			continue
 		}
 		result, runErr := expr.Run(program, env)
 		if runErr != nil {
-			fmt.Printf("Error: %v\n", runErr)
+			fmt.Println(styleError("Error: " + runErr.Error()))
 			continue
 		}
 
@@ -234,21 +240,18 @@ func Run() {
 			outN(float64(v), sizeCtx, convTarget)
 		case string:
 			clipboard.WriteAll(v)
-			fmt.Println(v)
+			fmt.Println(colorizeResult(v))
 		case func(float64) string, func(float64) float64:
-			fmt.Println("[Error: function requires arguments — e.g., bin(255)]")
+			fmt.Println(styleError("[Error: function requires arguments — e.g., bin(255)]"))
 		default:
 			s := fmt.Sprintf("%v", v)
 			clipboard.WriteAll(s)
-			fmt.Println(s)
+			fmt.Println(colorizeResult(s))
 		}
 	}
 }
 
-// outN formats a numeric result and prints it.
-// If convTarget is set (e.g. "bits", "km"), the result is labelled with that unit
-// and the current output mode is bypassed — so "1 gb to mb" always shows "1024 MB"
-// regardless of whether you're in size/hex/bin mode.
+// outN formats a numeric result, writes clipboard, and prints with colors.
 func outN(val float64, sizeCtx engine.SizeUnitContext, convTarget string) {
 	var terminal, clip string
 	if convTarget != "" {
@@ -259,7 +262,7 @@ func outN(val float64, sizeCtx engine.SizeUnitContext, convTarget string) {
 		clip = engine.FormatClipboard(val)
 	}
 	clipboard.WriteAll(clip)
-	fmt.Println(terminal)
+	fmt.Println(colorizeResult(terminal))
 }
 
 // toFloat64 coerces any numeric interface{} value to float64.
