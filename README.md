@@ -1,6 +1,6 @@
 # wrkr
 
-VIBE-CODED
+> README and code are vibe-coded. Built for personal use. No guarantees. Use at your own risk.
 
 A CLI calculator built for engineers who are tired of reaching for Python or a spreadsheet to do basic math while working. It understands units, remembers variables between expressions, and copies the right thing to your clipboard automatically.
 
