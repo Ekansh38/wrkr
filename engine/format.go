@@ -39,6 +39,44 @@ func FormatHex(f float64) string { return fmt.Sprintf("0x%X", int64(f)) }
 func FormatBin(f float64) string { return fmt.Sprintf("0b%b", int64(f)) }
 func FormatOct(f float64) string { return fmt.Sprintf("0o%o", int64(f)) }
 
+// formatSizeCoef formats a size coefficient for human-readable display (max 4 decimal places).
+func formatSizeCoef(val float64) string {
+	s := strconv.FormatFloat(val, 'f', 4, 64)
+	if strings.Contains(s, ".") {
+		s = strings.TrimRight(s, "0")
+		s = strings.TrimRight(s, ".")
+	}
+	return s
+}
+
+// unitDisplayLabels maps unit aliases to their canonical display label.
+var unitDisplayLabels = map[string]string{
+	"bit": "bits", "bits": "bits",
+	"b": "B", "byte": "B", "bytes": "B",
+	"kb": "KB", "kilobyte": "KB", "kilobytes": "KB",
+	"mb": "MB", "megabyte": "MB", "megabytes": "MB",
+	"gb": "GB", "gigabyte": "GB", "gigabytes": "GB",
+	"tb": "TB", "terabyte": "TB", "terabytes": "TB",
+	"m": "m", "meter": "m", "meters": "m",
+	"km": "km", "kilometer": "km", "kilometers": "km",
+	"cm": "cm", "centimeter": "cm", "centimeters": "cm",
+	"mm": "mm", "millimeter": "mm", "millimeters": "mm",
+	"mi": "mi", "mile": "mi", "miles": "mi",
+	"ft": "ft", "foot": "ft", "feet": "ft",
+	"in": "in", "inch": "in", "inches": "in",
+}
+
+// FormatWithTargetUnit formats a result annotated with the target unit from a conversion.
+// This bypasses the current output mode so "1 gb to mb" always shows "1024 MB",
+// not whatever the current mode would produce.
+func FormatWithTargetUnit(val float64, unitAlias string) string {
+	label, ok := unitDisplayLabels[unitAlias]
+	if !ok {
+		return FormatDecimal(val)
+	}
+	return FormatDecimal(val) + " " + label
+}
+
 // HumanReadableSize converts a raw byte count into a (coefficient, label) pair.
 // Example: 1073741824 → ("1", "GB")
 func HumanReadableSize(bytes float64) (coef string, label string) {
@@ -59,10 +97,10 @@ func HumanReadableSize(bytes float64) (coef string, label string) {
 	}
 	for _, t := range thresholds {
 		if abs >= t.div {
-			return FormatDecimal(bytes / t.div), t.label
+			return formatSizeCoef(bytes / t.div), t.label
 		}
 	}
-	return FormatDecimal(bytes), "B"
+	return formatSizeCoef(bytes), "B"
 }
 
 // FormatTerminal returns the string shown in the terminal for a float64 result.

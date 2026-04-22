@@ -121,6 +121,25 @@ func TranslateBases(input string) string {
 	})
 }
 
+// DetectConversionTarget returns the target unit alias if the input is a single
+// "X unit to targetUnit" conversion (e.g. "1 mb to bits" → "bits").
+// Returns "" for everything else so callers know not to override the display mode.
+func DetectConversionTarget(input string) string {
+	numPat := `(?:0x[0-9a-fA-F]+|0[bB][01]+|0[oO][0-7]+|[0-9]*\.?[0-9]+(?:e[-+]?[0-9]+)?)`
+	re := regexp.MustCompile(`(?i)^\s*([-+]?` + numPat + `)\s*([a-zA-Z]+)\s+to\s+([a-zA-Z]+)\s*$`)
+	m := re.FindStringSubmatch(input)
+	if len(m) == 4 {
+		src := strings.ToLower(m[2])
+		dst := strings.ToLower(m[3])
+		_, srcOK := UnitRates[src]
+		_, dstOK := UnitRates[dst]
+		if srcOK && dstOK {
+			return dst
+		}
+	}
+	return ""
+}
+
 // BuildASTString runs the full preprocessing pipeline on a raw expression string,
 // producing a form that the expr evaluator can compile.
 func BuildASTString(input string) string {

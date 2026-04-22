@@ -184,6 +184,10 @@ func Run() {
 		// 2. Remember whether a data-size unit is present (for Smart Hint).
 		hasUnit := engine.InputHasSizeUnit(cleanedInput)
 
+		// 2b. If this is a plain "X unit to targetUnit" conversion, record the
+		// target so we can bypass the current output mode and label correctly.
+		convTarget := engine.DetectConversionTarget(cleanedInput)
+
 		// 3. Autocorrect: suggest the fix only if it actually compiles.
 		sanitizedInput, changed := engine.SanitizeInput(cleanedInput, validTokens)
 		if changed {
@@ -221,13 +225,13 @@ func Run() {
 		// 5. Format and output.
 		switch v := result.(type) {
 		case float64:
-			out(v, hasUnit)
+			outN(v, hasUnit, convTarget)
 		case float32:
-			out(float64(v), hasUnit)
+			outN(float64(v), hasUnit, convTarget)
 		case int:
-			out(float64(v), hasUnit)
+			outN(float64(v), hasUnit, convTarget)
 		case int64:
-			out(float64(v), hasUnit)
+			outN(float64(v), hasUnit, convTarget)
 		case string:
 			clipboard.WriteAll(v)
 			fmt.Println(v)
@@ -241,10 +245,19 @@ func Run() {
 	}
 }
 
-// out formats a numeric result, writes the clipboard value, and prints to terminal.
-func out(val float64, hasUnit bool) {
-	terminal := engine.FormatTerminal(val, hasUnit)
-	clip := engine.FormatClipboard(val)
+// outN formats a numeric result and prints it.
+// If convTarget is set (e.g. "bits", "km"), the result is labelled with that unit
+// and the current output mode is bypassed — so "1 gb to mb" always shows "1024 MB"
+// regardless of whether you're in size/hex/bin mode.
+func outN(val float64, hasUnit bool, convTarget string) {
+	var terminal, clip string
+	if convTarget != "" {
+		terminal = engine.FormatWithTargetUnit(val, convTarget)
+		clip = engine.FormatDecimal(val)
+	} else {
+		terminal = engine.FormatTerminal(val, hasUnit)
+		clip = engine.FormatClipboard(val)
+	}
 	clipboard.WriteAll(clip)
 	fmt.Println(terminal)
 }
