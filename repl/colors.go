@@ -5,8 +5,6 @@ import (
 	"strings"
 
 	"github.com/fatih/color"
-
-	"wrkr/engine"
 )
 
 // ── Style definitions ─────────────────────────────────────────────────────────
@@ -35,18 +33,6 @@ var (
 		"bits":  color.New(color.FgMagenta).SprintFunc(),
 	}
 )
-
-// modePrompt returns the "[mode] > " prompt string colored for the current mode.
-// Note: liner does not account for invisible ANSI bytes when tracking cursor
-// position, so very long input lines may wrap slightly off on some terminals.
-// This is a known liner limitation; for a personal tool it is acceptable.
-func modePrompt() string {
-	fn, ok := modeColor[engine.CurrentMode]
-	if !ok {
-		fn = modeColor["dec"]
-	}
-	return fn("["+engine.CurrentMode+"]") + " > "
-}
 
 // colorizeResult applies colors to a formatted result string:
 //

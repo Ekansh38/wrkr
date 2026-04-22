@@ -74,8 +74,11 @@ func Run() {
 	fmt.Println("wrkr — type 'help all' for reference, 'exit' to quit")
 
 	for {
-		fmt.Println()
-		rawInput, err := line.Prompt(modePrompt())
+		// Print the colored mode tag as plain output so liner never sees ANSI bytes.
+		// liner calculates cursor position from the prompt string's rune count — any
+		// escape code inflates that count and causes it to misplace the cursor or hang.
+		fmt.Printf("\n%s ", colorMode("["+engine.CurrentMode+"]"))
+		rawInput, err := line.Prompt("> ")
 		if err != nil {
 			if err == liner.ErrPromptAborted || err == io.EOF {
 				return
