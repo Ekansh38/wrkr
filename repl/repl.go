@@ -69,18 +69,20 @@ func Run() {
 
 	line := liner.NewLiner()
 	defer line.Close()
-	line.SetCtrlCAborts(true)
+	line.SetCtrlCAborts(true) // returns ErrPromptAborted instead of sending SIGINT
 
 	fmt.Println("wrkr — type 'help all' for reference, 'exit' to quit")
 
 	for {
-		// Print the colored mode tag as plain output so liner never sees ANSI bytes.
-		// liner calculates cursor position from the prompt string's rune count — any
-		// escape code inflates that count and causes it to misplace the cursor or hang.
-		fmt.Printf("\n%s ", colorMode("["+engine.CurrentMode+"]"))
+		// Mode tag on its own line so liner's \r redraws never overwrite it.
+		fmt.Printf("\n%s\n", colorMode("["+engine.CurrentMode+"]"))
 		rawInput, err := line.Prompt("> ")
 		if err != nil {
-			if err == liner.ErrPromptAborted || err == io.EOF {
+			if err == liner.ErrPromptAborted {
+				fmt.Println(dimGray("  type :q to quit"))
+				continue
+			}
+			if err == io.EOF {
 				return
 			}
 			continue
