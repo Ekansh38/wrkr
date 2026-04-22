@@ -112,14 +112,74 @@ If you mistype a unit or function name, it finds the closest match via Levenshte
 
 ## Install
 
+Requires Go 1.21+. Get it at https://go.dev/dl/
+
+**Option 1: go install (recommended for Go users)**
+
+This is the idiomatic Go way. It compiles the binary and drops it in `~/go/bin`, which Go adds to your PATH automatically.
+
+```
+go install github.com/Ekansh38/wrkr@latest
+wrkr
+```
+
+If `wrkr` is not found after that, add this to your `~/.zshrc` or `~/.bashrc`:
+
+```
+export PATH="$HOME/go/bin:$PATH"
+```
+
+Then reload: `source ~/.zshrc`
+
+**Option 2: build from source and install to /usr/local/bin**
+
+This puts the binary somewhere already on your PATH system-wide. Any user on the machine can run it.
+
 ```
 git clone git@github.com:Ekansh38/wrkr.git
 cd wrkr
 go build -o wrkr .
-./wrkr
+sudo mv wrkr /usr/local/bin/wrkr
+wrkr
 ```
 
-Requires Go 1.21+.
+**Option 3: build from source and install to ~/bin**
+
+No sudo required. Good if you do not have admin access or prefer keeping things in your home directory.
+
+```
+git clone git@github.com:Ekansh38/wrkr.git
+cd wrkr
+go build -o wrkr .
+mkdir -p ~/bin
+mv wrkr ~/bin/wrkr
+```
+
+Add this to your `~/.zshrc` or `~/.bashrc` if `~/bin` is not already on your PATH:
+
+```
+export PATH="$HOME/bin:$PATH"
+```
+
+Then reload: `source ~/.zshrc`
+
+**Do not use an alias for this.** Aliases work but break in scripts and non-interactive shells. Putting the binary on your PATH is the right approach.
+
+---
+
+## Releases and distribution
+
+Go compiles to a single static binary with no runtime dependencies. That binary runs on any machine with the same OS and architecture. You do not need Go installed on the target machine to run the binary.
+
+To build for a different platform:
+
+```
+GOOS=linux GOARCH=amd64 go build -o wrkr-linux-amd64 .
+GOOS=darwin GOARCH=arm64 go build -o wrkr-macos-arm64 .
+GOOS=windows GOARCH=amd64 go build -o wrkr-windows-amd64.exe .
+```
+
+To create a GitHub release with pre-built binaries for all platforms, the standard Go tool is GoReleaser (goreleaser.com). You give it a config file and it cross-compiles, archives, checksums, and uploads everything to a GitHub release in one command. Most Go CLI projects use it. That is not set up here yet.
 
 ---
 
