@@ -104,8 +104,15 @@ func HumanReadableSize(bytes float64) (coef string, label string) {
 }
 
 // FormatTerminal returns the string shown in the terminal for a float64 result.
-// hasUnit flags that the expression contained a data-size unit, enabling Smart Hint in dec mode.
-func FormatTerminal(val float64, hasUnit bool) string {
+//
+// sizeCtx controls the Smart Hint behaviour in dec mode:
+//
+//	0  no hint
+//	1  one distinct size unit type -- always show hint, even for sub-KB results
+//	   (e.g. "62.5 bits" → "7.8125  [bytes]")
+//	2+ multiple unit types that may cancel -- only hint when result is >= 1 KB
+//	   (e.g. "(256*mb)/(4*gb)*1000 = 62.5" stays silent)
+func FormatTerminal(val float64, sizeCtx SizeUnitContext) string {
 	switch CurrentMode {
 	case "hex":
 		return fmt.Sprintf("%s  [Hex]", FormatHex(val))
@@ -122,12 +129,19 @@ func FormatTerminal(val float64, hasUnit bool) string {
 		return fmt.Sprintf("%s bits", FormatDecimal(val*8))
 	default: // "dec"
 		raw := FormatDecimal(val)
-		if hasUnit {
-			coef, label := HumanReadableSize(val)
-			// Only append the hint when it adds information (i.e. not "X B" == raw)
-			if label != "B" {
-				return fmt.Sprintf("%s  [%s %s]", raw, coef, label)
-			}
+		if sizeCtx == 0 {
+			return raw
+		}
+		coef, label := HumanReadableSize(val)
+		if label != "B" {
+			// Result is >= 1 KB: always show the scaled hint.
+			return fmt.Sprintf("%s  [%s %s]", raw, coef, label)
+		}
+		// Result is < 1 KB (bytes range).
+		// Only label it when there is exactly one size unit type: the units
+		// cannot have cancelled, so the result really is a byte count.
+		if sizeCtx == 1 {
+			return fmt.Sprintf("%s  [bytes]", raw)
 		}
 		return raw
 	}

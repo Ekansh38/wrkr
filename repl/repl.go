@@ -182,7 +182,7 @@ func Run() {
 		cleanedInput = strings.ReplaceAll(cleanedInput, " in to ", " to ")
 
 		// 2. Remember whether a data-size unit is present (for Smart Hint).
-		hasUnit := engine.InputHasSizeUnit(cleanedInput)
+		sizeCtx := engine.InputSizeUnitContext(cleanedInput)
 
 		// 2b. If this is a plain "X unit to targetUnit" conversion, record the
 		// target so we can bypass the current output mode and label correctly.
@@ -225,13 +225,13 @@ func Run() {
 		// 5. Format and output.
 		switch v := result.(type) {
 		case float64:
-			outN(v, hasUnit, convTarget)
+			outN(v, sizeCtx, convTarget)
 		case float32:
-			outN(float64(v), hasUnit, convTarget)
+			outN(float64(v), sizeCtx, convTarget)
 		case int:
-			outN(float64(v), hasUnit, convTarget)
+			outN(float64(v), sizeCtx, convTarget)
 		case int64:
-			outN(float64(v), hasUnit, convTarget)
+			outN(float64(v), sizeCtx, convTarget)
 		case string:
 			clipboard.WriteAll(v)
 			fmt.Println(v)
@@ -249,13 +249,13 @@ func Run() {
 // If convTarget is set (e.g. "bits", "km"), the result is labelled with that unit
 // and the current output mode is bypassed — so "1 gb to mb" always shows "1024 MB"
 // regardless of whether you're in size/hex/bin mode.
-func outN(val float64, hasUnit bool, convTarget string) {
+func outN(val float64, sizeCtx engine.SizeUnitContext, convTarget string) {
 	var terminal, clip string
 	if convTarget != "" {
 		terminal = engine.FormatWithTargetUnit(val, convTarget)
 		clip = engine.FormatDecimal(val)
 	} else {
-		terminal = engine.FormatTerminal(val, hasUnit)
+		terminal = engine.FormatTerminal(val, sizeCtx)
 		clip = engine.FormatClipboard(val)
 	}
 	clipboard.WriteAll(clip)

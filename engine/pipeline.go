@@ -7,16 +7,25 @@ import (
 	"strings"
 )
 
-// InputHasSizeUnit returns true if the raw input contains a data-size unit token.
-// Used to decide whether to show the Smart Hint in dec mode.
-func InputHasSizeUnit(input string) bool {
+// SizeUnitContext describes how many distinct data-size unit types appear in an expression.
+// The REPL passes this to the formatter so it can decide how aggressive to be with hints.
+//
+//   0  no size unit at all
+//   1  exactly one distinct type (e.g. only "bits", or only "mb") -- result IS in bytes
+//   2+ multiple distinct types (e.g. "mb" / "gb") -- units may cancel, result is ambiguous
+type SizeUnitContext int
+
+// InputSizeUnitContext counts the number of distinct data-size unit types in the expression.
+func InputSizeUnitContext(input string) SizeUnitContext {
+	seen := map[string]bool{}
 	re := regexp.MustCompile(`(?i)\b([a-zA-Z]+)\b`)
 	for _, match := range re.FindAllString(input, -1) {
-		if SizeUnitAliases[strings.ToLower(match)] {
-			return true
+		lower := strings.ToLower(match)
+		if SizeUnitAliases[lower] {
+			seen[lower] = true
 		}
 	}
-	return false
+	return SizeUnitContext(len(seen))
 }
 
 // FixBaseTypos replaces shorthand literals like \b101 → 0b101.

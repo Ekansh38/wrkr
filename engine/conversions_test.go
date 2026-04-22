@@ -183,26 +183,39 @@ func TestFormat_HumanSize_MB_Fractional(t *testing.T) {
 }
 
 func TestFormat_SmartHint_ShowsForKB(t *testing.T) {
-	// In dec mode, result ≥ 1 KB with a size unit → hint appended
+	// In dec mode, result >= 1 KB with one size unit type → hint appended
 	prev := engine.CurrentMode
 	engine.CurrentMode = "dec"
 	defer func() { engine.CurrentMode = prev }()
 
-	s := engine.FormatTerminal(4096, true)
+	s := engine.FormatTerminal(4096, 1) // sizeCtx=1: one distinct size unit type
 	if s == "4096" {
-		t.Error("Smart Hint not shown for 4096 bytes (1 KB) with hasUnit=true")
+		t.Error("Smart Hint not shown for 4096 bytes (1 KB) with sizeCtx=1")
 	}
 }
 
-func TestFormat_SmartHint_SilentForBytes(t *testing.T) {
-	// A result below 1 KB — hint should NOT fire even with hasUnit=true
+func TestFormat_SmartHint_BytesLabel_SingleUnit(t *testing.T) {
+	// Sub-KB result with sizeCtx=1 (e.g. "62.5 bits" → 7.8125 bytes) → show [bytes]
 	prev := engine.CurrentMode
 	engine.CurrentMode = "dec"
 	defer func() { engine.CurrentMode = prev }()
 
-	s := engine.FormatTerminal(512, true)
-	if s != "512" {
-		t.Errorf("FormatTerminal(512, true) in dec = %q, want plain %q", s, "512")
+	s := engine.FormatTerminal(7.8125, 1)
+	want := "7.8125  [bytes]"
+	if s != want {
+		t.Errorf("FormatTerminal(7.8125, 1) = %q, want %q", s, want)
+	}
+}
+
+func TestFormat_SmartHint_SilentForCancelledUnits(t *testing.T) {
+	// Sub-KB result with sizeCtx=2 (units may cancel, e.g. mb/gb*1000) → no hint
+	prev := engine.CurrentMode
+	engine.CurrentMode = "dec"
+	defer func() { engine.CurrentMode = prev }()
+
+	s := engine.FormatTerminal(62.5, 2)
+	if s != "62.5" {
+		t.Errorf("FormatTerminal(62.5, 2) = %q, want plain %q", s, "62.5")
 	}
 }
 
