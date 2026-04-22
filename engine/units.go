@@ -43,6 +43,8 @@ func init() {
 	distUnits := []Unit{
 		{[]string{"m", "meter", "meters"}, 1},
 		{[]string{"km", "kilometer", "kilometers"}, 1000},
+		{[]string{"cm", "centimeter", "centimeters"}, 0.01},
+		{[]string{"mm", "millimeter", "millimeters"}, 0.001},
 		{[]string{"mi", "mile", "miles"}, 1609.344},
 		{[]string{"ft", "foot", "feet"}, 0.3048},
 		{[]string{"in", "inch", "inches"}, 0.0254},

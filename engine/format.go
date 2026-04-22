@@ -24,7 +24,7 @@ var ModeMap = map[string]string{
 
 // FormatDecimal formats a float64 as a clean decimal string (no trailing zeros).
 func FormatDecimal(val float64) string {
-	s := strconv.FormatFloat(val, 'f', 14, 64)
+	s := strconv.FormatFloat(val, 'f', 12, 64)
 	if strings.Contains(s, ".") {
 		s = strings.TrimRight(s, "0")
 		s = strings.TrimRight(s, ".")
