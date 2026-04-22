@@ -18,6 +18,8 @@ var ModeMap = map[string]string{
 	"oct": "oct", "octal": "oct",
 	"dec": "dec", "decimal": "dec",
 	"size": "size",
+	"bytes": "bytes", "byte": "bytes",
+	"bits": "bits", "bit": "bits",
 }
 
 // FormatDecimal formats a float64 as a clean decimal string (no trailing zeros).
@@ -76,6 +78,10 @@ func FormatTerminal(val float64, hasUnit bool) string {
 	case "size":
 		coef, label := HumanReadableSize(val)
 		return fmt.Sprintf("%s %s", coef, label)
+	case "bytes":
+		return fmt.Sprintf("%s B", FormatDecimal(val))
+	case "bits":
+		return fmt.Sprintf("%s bits", FormatDecimal(val*8))
 	default: // "dec"
 		raw := FormatDecimal(val)
 		if hasUnit {
@@ -101,6 +107,10 @@ func FormatClipboard(val float64) string {
 	case "size":
 		coef, _ := HumanReadableSize(val)
 		return coef
+	case "bytes":
+		return FormatDecimal(val)
+	case "bits":
+		return FormatDecimal(val * 8)
 	default:
 		return FormatDecimal(val)
 	}
