@@ -61,6 +61,32 @@ func TestRewrite_BitwiseNOT(t *testing.T) {
 	}
 }
 
+func TestRewrite_BitwiseNOT_WithSpace(t *testing.T) {
+	// "~ a" (space after tilde) must not duplicate the operand.
+	got := engine.RewriteBitwiseOps("~ a")
+	if got != "bnot(a)" {
+		t.Errorf("~ space rewrite: got %q, want bnot(a)", got)
+	}
+}
+
+func TestRewrite_BitwiseNOT_FuncArg(t *testing.T) {
+	// "~ sin(x)" must not produce a stray closing paren.
+	got := engine.RewriteBitwiseOps("~ sin(x)")
+	if got != "bnot(sin(x))" {
+		t.Errorf("~ func rewrite: got %q, want bnot(sin(x))", got)
+	}
+}
+
+func TestEval_BitwiseNOT_Zero(t *testing.T) {
+	// ~0 in int64 = -1
+	near(t, eval(t, "~0"), -1, "~0")
+}
+
+func TestEval_BitwiseNOT_Space_Zero(t *testing.T) {
+	// "~ 0" (with space) must give same result as "~0"
+	near(t, eval(t, "~ 0"), -1, "~ 0")
+}
+
 func TestRewrite_LeftShift(t *testing.T) {
 	got := engine.RewriteBitwiseOps("1 << 3")
 	if got != "blshift(1, 3)" {

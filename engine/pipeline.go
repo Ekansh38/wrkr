@@ -265,7 +265,7 @@ func BuildASTString(input string) string {
 // ExpandConstants replaces unit names, pi, and user variables with their
 // numeric values. Used only for the debug "expanded" display step.
 func ExpandConstants(input string) string {
-	re := regexp.MustCompile(`\b([a-zA-Z][a-zA-Z0-9]*)\b`)
+	re := regexp.MustCompile(`\b([a-zA-Z][a-zA-Z0-9_]*)\b`)
 	return re.ReplaceAllStringFunc(input, func(match string) string {
 		lower := strings.ToLower(match)
 		if rate, ok := UnitRates[lower]; ok {

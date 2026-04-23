@@ -360,26 +360,28 @@ func bwRewriteNotAndParens(toks []bwTok) string {
 //   - An identifier optionally followed by (...) — function call
 //   - A numeric literal
 func bwConsumeAtom(toks []bwTok, start int) (string, int) {
+	origStart := start // remember position before whitespace skip
 	// Skip leading whitespace.
 	for start < len(toks) && toks[start].kind == bwSpace {
 		start++
 	}
 	if start >= len(toks) {
-		return "0", 0
+		return "0", start - origStart
 	}
+	skip := start - origStart // whitespace tokens to add to every returned count
 	t := toks[start]
 
 	// Recursive ~
 	if t.kind == bwOp && t.val == "~" {
 		inner, n := bwConsumeAtom(toks, start+1)
-		return "bnot(" + inner + ")", n + 1
+		return "bnot(" + inner + ")", skip + n + 1
 	}
 
 	// Parenthesised group
 	if t.kind == bwLParen {
 		end := bwMatchParen(toks, start)
 		inner := toks[start+1 : end]
-		return "(" + bwExpr(inner) + ")", end - start + 1
+		return "(" + bwExpr(inner) + ")", skip + end - start + 1
 	}
 
 	// Identifier — check if it's a function call (ident immediately followed by '(')
@@ -397,13 +399,13 @@ func bwConsumeAtom(toks []bwTok, start int) (string, int) {
 				argStrs = append(argStrs, bwExpr(arg))
 			}
 			fnCall := t.val + "(" + strings.Join(argStrs, ", ") + ")"
-			return fnCall, end - start + 1
+			return fnCall, skip + end - start + 1
 		}
-		return t.val, 1
+		return t.val, skip + 1
 	}
 
 	// Numeric literal or anything else
-	return t.val, 1
+	return t.val, skip + 1
 }
 
 // ── utilities ─────────────────────────────────────────────────────────────────

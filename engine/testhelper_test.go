@@ -11,8 +11,10 @@ import (
 )
 
 // pipeline runs the full preprocessing pipeline and returns the AST string.
+// Order matches the REPL's real evaluation path.
 func pipeline(input string) string {
-	s := engine.FixBaseTypos(input)
+	s := engine.StripNumericSeparators(input)
+	s = engine.FixBaseTypos(s)
 	s = engine.FixNakedBases(s)
 	s = strings.ReplaceAll(s, " into ", " to ")
 	return engine.BuildASTString(s)

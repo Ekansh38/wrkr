@@ -55,13 +55,14 @@ func colorizeResult(s string) string {
 	}
 
 	// "number  [hint bracket]" — dec mode smart hint.
-	reHint := regexp.MustCompile(`^([-\d.]+)(  \[.+\])$`)
+	// [-\d._]+ handles both plain (1048576) and grouped (1_048_576) numbers.
+	reHint := regexp.MustCompile(`^([-\d._]+)(  \[.+\])$`)
 	if m := reHint.FindStringSubmatch(s); m != nil {
 		return boldWhite(m[1]) + dimGray(m[2])
 	}
 
 	// "number unit" — size / bytes / bits / conversion target labels.
-	reUnit := regexp.MustCompile(`^([-\d.]+)\s+([A-Za-z]+)$`)
+	reUnit := regexp.MustCompile(`^([-\d._]+)\s+([A-Za-z]+)$`)
 	if m := reUnit.FindStringSubmatch(s); m != nil {
 		return boldWhite(m[1]) + " " + dimGray(m[2])
 	}
