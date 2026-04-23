@@ -56,39 +56,37 @@ Result shows the target unit label and ignores the current output mode.
 
 Three equivalent ways to write a non-decimal literal:
 
-```
-prefix:    0xFF    0b1010    0o17
-natural:   FF hex  101 bin   17 octal   (suffix = base the digits are in)
-typo:      \xFF    \b1010    \o17       (backslash = 0)
-```
+| style | example | note |
+|-------|---------|------|
+| prefix | `0xFF` `0b1010` `0o17` | standard |
+| natural | `FF hex` `101 bin` `17 octal` | suffix = base the digits are in |
+| typo | `\xFF` `\b1010` `\o17` | backslash = 0 |
 
 ## Base conversion
 
 Three equivalent ways to reformat a number:
 
-```
-hex(255)           -> 0xFF
-255 to hex         -> 0xFF
-0xFF to bin        -> 0b11111111
-0x123 hex to bin   -> 0b100100011    (middle word = source base, to X = target)
-0b1010 bin to hex  -> 0xA
-dec(0xFF)          -> 255
-```
+| style | example | result |
+|-------|---------|--------|
+| function | `hex(255)` `bin(255)` `octal(255)` `dec(0xFF)` | `0xFF` `0b11111111` `0o377` `255` |
+| to keyword | `255 to hex` `0xFF to bin` | `0xFF` `0b11111111` |
+| annotated source | `0x123 hex to bin` `0b1010 bin to hex` | `0b100100011` `0xA` |
+
+Annotated source: middle word = source base, `to X` = target. Useful when you already have a prefixed literal and just want it in a different base.
 
 ## Output modes
 
 `mode <name>` to switch. Bare `hex`/`bin` evaluate as expressions, not mode switches.
 
-```
-mode     terminal                          clipboard
-dec      1048576  [1 MB]                   1048576
-size     1 MB                              1
-bytes    1048576 B                         1048576
-bits     8388608 bits                      8388608
-hex      0x100000  [Hex]                   0x100000
-bin      0b100000000000000000000  [Bin]    0b100000000000000000000
-oct      0o4000000  [Oct]                  0o4000000
-```
+| mode | terminal | clipboard |
+|------|----------|-----------|
+| `dec` | `1048576  [1 MB]` | `1048576` |
+| `size` | `1 MB` | `1` |
+| `bytes` | `1048576 B` | `1048576` |
+| `bits` | `8388608 bits` | `8388608` |
+| `hex` | `0x100000  [Hex]` | `0x100000` |
+| `bin` | `0b100000000000000000000  [Bin]` | `0b100000000000000000000` |
+| `oct` | `0o4000000  [Oct]` | `0o4000000` |
 
 dec mode adds a size hint `[1 MB]` when the expression involves a data unit. Suppressed when units cancel out (e.g. `(256 * mb) / (4 * gb) * 1000` = 62.5, units cancelled, result is dimensionless).
 
