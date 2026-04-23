@@ -44,6 +44,13 @@ func printHelp(topic string) {
 		fmt.Println("    255 to hex  0xFF to bin                      to keyword")
 		fmt.Println("    0x123 hex to bin  0b1010 bin to hex          annotated source")
 		fmt.Println()
+		fmt.Println("  bitwise:  & | ^ ~ << >>  (standard C precedence)")
+		fmt.Println("    0xFF & 0x0F              -> 15      (low nibble)")
+		fmt.Println("    (0xAB >> 4) & 0xF        -> 10      (high nibble)")
+		fmt.Println("    1 << 5                   -> 32      (set bit 5)")
+		fmt.Println("    0x12345 & ~(4096-1)      -> 73728   (page-align)")
+		fmt.Println("    ~0                       -> -1      (all bits set, int64)")
+		fmt.Println()
 		fmt.Println("  data sizes:  b  bit  kb  mb  gb  tb")
 		fmt.Println("    5 mb               -> 5242880")
 		fmt.Println("    2 * tb / (4 * kb)  -> 536870912")
@@ -419,8 +426,9 @@ func Run() {
 			s4 := engine.ProcessConversions(s3)
 			s5 := engine.ProcessFormatting(s4)
 			s6 := engine.FixImplicitMultiplication(s5)
-			s7 := engine.TranslateBases(s6)
-			s8 := engine.ExpandConstants(s6) // unit names -> numbers (pre-translate view)
+			s7 := engine.RewriteBitwiseOps(s6)
+			s8 := engine.TranslateBases(s7)
+			s9 := engine.ExpandConstants(s7) // unit names -> numbers (pre-translate view)
 
 			steps := []struct{ label, val string }{
 				{"input   ", s0},
@@ -430,8 +438,9 @@ func Run() {
 				{"convert ", s4},
 				{"format  ", s5},
 				{"multiply", s6},
-				{"ast     ", s7},
-				{"expanded", s8},
+				{"bitwise ", s7},
+				{"ast     ", s8},
+				{"expanded", s9},
 			}
 
 			fmt.Println()
@@ -449,7 +458,7 @@ func Run() {
 			}
 
 			env := engine.GetMergedEnv()
-			if prog, err := expr.Compile(s7, expr.Env(env)); err == nil {
+			if prog, err := expr.Compile(s8, expr.Env(env)); err == nil {
 				if res, err := expr.Run(prog, env); err == nil {
 					var resultStr string
 					switch v := res.(type) {

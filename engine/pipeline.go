@@ -240,6 +240,7 @@ func BuildASTString(input string) string {
 	s := ProcessConversions(input)
 	s = ProcessFormatting(s)
 	s = FixImplicitMultiplication(s)
+	s = RewriteBitwiseOps(s)
 	s = TranslateBases(s)
 	return s
 }

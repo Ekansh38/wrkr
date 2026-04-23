@@ -124,6 +124,42 @@ Positive values are zero-padded to the full width. Values outside the range trun
 hex32(_)            -> 0xFFFFFFFC
 ```
 
+## Bitwise operators
+
+Standard C bitwise operators, with standard C precedence.
+
+| operator | name | example | result |
+|----------|------|---------|--------|
+| `a & b` | AND | `0b1100 & 0b1010` | `8` |
+| `a \| b` | OR | `0b1100 \| 0b1010` | `14` |
+| `a ^ b` | XOR | `0b1100 ^ 0b1010` | `6` |
+| `~a` | NOT | `~0` | `-1` |
+| `a << n` | left shift | `1 << 8` | `256` |
+| `a >> n` | right shift | `256 >> 4` | `16` |
+
+Precedence (high → low): `~`, `* / + -`, `<< >>`, `&`, `^`, `|` — matching C.  
+`>>` is arithmetic (sign-preserving). `&&` and `||` (logical) are passed through unchanged.
+
+```
+0xFF & 0x0F                  -> 15       low nibble
+0xFF00 | 0x00FF              -> 65535    combine fields
+0xAB ^ 0xCD                  -> 102      XOR checksum
+~0b00001111                  -> -16      flip bits (int64 two's complement)
+1 << 5                       -> 32       set bit 5
+(0xAB >> 4) & 0xF            -> 10       extract high nibble of 0xAB
+0x12345 & ~(4096-1)          -> 73728    page-align to 4 KB boundary
+(0b10110100 >> 3) & 7        -> 6        extract bits [5:3]
+7 & (2 | 4)                  -> 6        check collidable|active flags set
+```
+
+Combines with type mode and format mode:
+
+```
+mode hex
+~0 & 0xFF                    -> 0xFF  [Hex]
+(0xDEAD ^ key) to u16        -> wraps XOR result to u16 range
+```
+
 ## Two modes: format and type
 
 The calculator has two orthogonal mode settings:

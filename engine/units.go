@@ -94,6 +94,29 @@ func init() {
 		CalcEnv[fmt.Sprintf("oct%d", b)] = func(f float64) string { return FormatOctN(f, b) }
 	}
 
+	// Bitwise operation functions.
+	// These are called by RewriteBitwiseOps after rewriting & | ^ ~ << >> to
+	// function-call form.  All operate on int64 bit patterns.
+	// >> is arithmetic (sign-preserving), matching C signed-integer semantics.
+	CalcEnv["band"] = func(a, b float64) float64 { return float64(safeInt64(a) & safeInt64(b)) }
+	CalcEnv["bor"] = func(a, b float64) float64 { return float64(safeInt64(a) | safeInt64(b)) }
+	CalcEnv["bxor"] = func(a, b float64) float64 { return float64(safeInt64(a) ^ safeInt64(b)) }
+	CalcEnv["bnot"] = func(a float64) float64 { return float64(^safeInt64(a)) }
+	CalcEnv["blshift"] = func(a, b float64) float64 {
+		shift := safeInt64(b)
+		if shift < 0 || shift >= 64 {
+			return 0
+		}
+		return float64(safeInt64(a) << uint(shift))
+	}
+	CalcEnv["brshift"] = func(a, b float64) float64 {
+		shift := safeInt64(b)
+		if shift < 0 || shift >= 64 {
+			return 0
+		}
+		return float64(safeInt64(a) >> uint(shift))
+	}
+
 	// Integer cast functions: u8/s8 … u128/s128.
 	// Return float64 so results compose with arithmetic (e.g. u8(200) + u8(100)).
 	for _, spec := range []struct {
