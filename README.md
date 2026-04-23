@@ -67,7 +67,7 @@ Write numbers next to units and they multiply automatically.
 
 **Output modes**
 
-Switch with "mode" or just type the mode name.
+Switch with `mode <name>`. Only the explicit `mode` prefix switches modes — bare words like `hex` or `bits` evaluate as expressions.
 
 - dec: raw number with a Smart Hint bracket when a size unit is involved
 - size: human-readable auto-scaling (1 GB, 512 MB)

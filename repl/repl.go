@@ -32,7 +32,7 @@ func printHelp(topic string) {
 		fmt.Println("Usage:   50 mi to km   |   2 gb to mb")
 	case "modes", "state":
 		fmt.Println("--- Output Modes ---")
-		fmt.Println("Switch:  mode <type>   (or just type 'hex', 'bin', etc.)")
+		fmt.Println("Switch:  mode <type>")
 		fmt.Println()
 		fmt.Println("  dec    terminal: 1048576  [1 MB]       clipboard: 1048576")
 		fmt.Println("  size   terminal: 1 MB                  clipboard: 1")
@@ -152,18 +152,11 @@ func Run() {
 			fmt.Printf("Current output mode: %s\n", colorMode(engine.CurrentMode))
 			continue
 		}
+		// Mode switching only via explicit "mode <name>" — never a bare word,
+		// so expressions like "0x123 hex to bin" are never intercepted.
 		if strings.HasPrefix(lowerInput, "mode ") {
-			// "mode bits", "mode bytes", "mode hex", etc. — full ModeMap.
 			modeCmd := strings.TrimSpace(strings.TrimPrefix(lowerInput, "mode "))
 			if newMode, ok := engine.ModeMap[modeCmd]; ok {
-				engine.CurrentMode = newMode
-				fmt.Printf("Output mode → %s\n", colorMode(newMode))
-				continue
-			}
-		} else {
-			// Bare word switch: only non-unit aliases (hex, bin, oct, dec, size).
-			// bits/bytes are excluded — they evaluate as unit expressions instead.
-			if newMode, ok := engine.BareModeAliases[lowerInput]; ok {
 				engine.CurrentMode = newMode
 				fmt.Printf("Output mode → %s\n", colorMode(newMode))
 				continue

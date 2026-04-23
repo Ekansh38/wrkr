@@ -23,16 +23,6 @@ var ModeMap = map[string]string{
 	"bits": "bits",
 }
 
-// BareModeAliases are words that switch mode when typed alone (no "mode" prefix).
-// bits and bytes are excluded because they are also unit names — typing them
-// bare should evaluate as a unit expression, not switch the mode.
-var BareModeAliases = map[string]string{
-	"hex": "hex", "hexadecimal": "hex", "hexidecimal": "hex",
-	"bin": "bin", "binary": "bin",
-	"oct": "oct", "octal": "oct",
-	"dec": "dec", "decimal": "dec",
-	"size": "size",
-}
 
 // FormatDecimal formats a float64 as a clean decimal string (no trailing zeros).
 func FormatDecimal(val float64) string {
