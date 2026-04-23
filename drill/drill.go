@@ -39,6 +39,7 @@ type Question struct {
 	Value  int    // the integer value
 	From   string // display form shown to user (e.g. "0b1011")
 	ToBase string // "hex", "bin", or "dec"
+	Mode   Mode   // originating mode, used for correct-answer padding
 }
 
 // Generate returns a new Question for the given mode and conversion.
@@ -48,30 +49,27 @@ func Generate(mode Mode, conv Conv, rng *rand.Rand) Question {
 	var from string
 	switch conv {
 	case ConvToHex:
-		// show bin or dec depending on mode
 		if mode == ModePowers {
 			from = fmtDec(val)
 		} else {
-			from = fmtBin(val, mode == ModeByte)
+			from = fmtBin(val, binWidth(mode))
 		}
 	case ConvToBin:
-		// show hex or dec
 		if mode == ModePowers {
 			from = fmtDec(val)
 		} else {
 			from = fmtHex(val)
 		}
 	case ConvToDec:
-		// show hex or bin
 		if rng.Intn(2) == 0 {
-			from = fmtBin(val, mode == ModeByte)
+			from = fmtBin(val, binWidth(mode))
 		} else {
 			from = fmtHex(val)
 		}
 	}
 
 	toBase := [...]string{"hex", "bin", "dec"}[conv]
-	return Question{Value: val, From: from, ToBase: toBase}
+	return Question{Value: val, From: from, ToBase: toBase, Mode: mode}
 }
 
 // Prompt returns the question string shown to the user.
@@ -86,7 +84,7 @@ func (q Question) Prompt() string {
 // Accepted formats per target base:
 //
 //	hex:  0xF / 0XF / bare hex with at least one a-f letter (e.g. "F", "b4")
-//	bin:  0b1010 / 0B1010 / bare 0s and 1s (e.g. "1010")
+//	bin:  0b1010 / 0B1010 / \b1010 / bare 0s and 1s (e.g. "1010")
 //	dec:  plain digits, no base prefix, no a-f
 func (q Question) Check(answer string) bool {
 	answer = strings.TrimSpace(answer)
@@ -101,6 +99,70 @@ func (q Question) Check(answer string) bool {
 		return false
 	}
 	return got == q.Value
+}
+
+// CorrectAnswer returns the canonical correct answer string, padded
+// appropriately for the originating mode.
+func (q Question) CorrectAnswer() string {
+	switch q.ToBase {
+	case "hex":
+		return fmtHex(q.Value)
+	case "bin":
+		return fmtBin(q.Value, binWidth(q.Mode))
+	default:
+		return fmtDec(q.Value)
+	}
+}
+
+// ── helpers ───────────────────────────────────────────────────────────────────
+
+// binWidth returns the zero-padding width for binary output given the mode.
+// Nibble → 4, byte → 8, everything else → 0 (natural width).
+func binWidth(mode Mode) int {
+	switch mode {
+	case ModeNibble:
+		return 4
+	case ModeByte:
+		return 8
+	}
+	return 0
+}
+
+func pickValue(mode Mode, rng *rand.Rand) int {
+	switch mode {
+	case ModeNibble:
+		return rng.Intn(16)
+	case ModePowers:
+		return 1 << rng.Intn(16)
+	case ModeByte:
+		return rng.Intn(256)
+	case ModeRandom:
+		switch rng.Intn(3) {
+		case 0:
+			return rng.Intn(16)
+		case 1:
+			return 1 << rng.Intn(16)
+		default:
+			return rng.Intn(256)
+		}
+	}
+	return 0
+}
+
+func fmtHex(v int) string {
+	return fmt.Sprintf("0x%X", v)
+}
+
+func fmtBin(v, width int) string {
+	s := strconv.FormatInt(int64(v), 2)
+	if width > 0 && len(s) < width {
+		s = strings.Repeat("0", width-len(s)) + s
+	}
+	return "0b" + s
+}
+
+func fmtDec(v int) string {
+	return strconv.Itoa(v)
 }
 
 // parseAnswerInBase parses the answer knowing the expected base, so bare
@@ -137,7 +199,7 @@ func matchesBase(answer, base string) bool {
 			return true
 		}
 		// reject binary/octal prefixed strings even though they contain hex chars
-		if strings.HasPrefix(low, "0b") || strings.HasPrefix(low, "0o") {
+		if strings.HasPrefix(low, "0b") || strings.HasPrefix(low, "0o") || strings.HasPrefix(low, `\b`) {
 			return false
 		}
 		// bare hex: must contain at least one a-f character
@@ -162,7 +224,7 @@ func matchesBase(answer, base string) bool {
 		}
 		return true
 	case "dec":
-		if strings.HasPrefix(low, "0x") || strings.HasPrefix(low, "0b") {
+		if strings.HasPrefix(low, "0x") || strings.HasPrefix(low, "0b") || strings.HasPrefix(low, `\b`) {
 			return false
 		}
 		for _, c := range low {
@@ -175,82 +237,22 @@ func matchesBase(answer, base string) bool {
 	return false
 }
 
-// CorrectAnswer returns the canonical correct answer string.
-func (q Question) CorrectAnswer() string {
-	switch q.ToBase {
-	case "hex":
-		return fmtHex(q.Value)
-	case "bin":
-		return fmtBin(q.Value, q.Value > 15)
-	default:
-		return fmtDec(q.Value)
-	}
-}
-
-// ── helpers ───────────────────────────────────────────────────────────────────
-
-func pickValue(mode Mode, rng *rand.Rand) int {
-	switch mode {
-	case ModeNibble:
-		return rng.Intn(16) // 0–15
-	case ModePowers:
-		exp := rng.Intn(16) // 2^0 to 2^15
-		return 1 << exp
-	case ModeByte:
-		return rng.Intn(256) // 0–255
-	case ModeRandom:
-		switch rng.Intn(3) {
-		case 0:
-			return rng.Intn(16)
-		case 1:
-			return 1 << rng.Intn(16)
-		default:
-			return rng.Intn(256)
-		}
-	}
-	return 0
-}
-
-func fmtHex(v int) string {
-	return fmt.Sprintf("0x%X", v)
-}
-
-func fmtBin(v int, padByte bool) string {
-	s := strconv.FormatInt(int64(v), 2)
-	if padByte && len(s) < 8 {
-		s = strings.Repeat("0", 8-len(s)) + s
-	}
-	return "0b" + s
-}
-
-func fmtDec(v int) string {
-	return strconv.Itoa(v)
-}
-
-// parseAnswer parses the user's answer as an integer, accepting:
-//
-//	decimal:  "15", "255"
-//	hex:      "0xF", "0XF", "F", "f", "0b"  (bare hex digits, must contain a-f/A-F or 0x prefix)
-//	binary:   "0b1111", "0B1111"
+// parseAnswer parses the user's answer as an integer (base-agnostic).
+// Used by tests only; drill.Check uses parseAnswerInBase.
 func parseAnswer(s string) (int, bool) {
 	low := strings.ToLower(strings.TrimSpace(s))
 
-	// explicit prefix
 	if strings.HasPrefix(low, "0x") {
-		v, err := strconv.ParseInt(s[2:], 16, 64)
+		v, err := strconv.ParseInt(low[2:], 16, 64)
 		return int(v), err == nil
 	}
-	if strings.HasPrefix(low, "0b") {
-		v, err := strconv.ParseInt(s[2:], 2, 64)
+	if strings.HasPrefix(low, "0b") || strings.HasPrefix(low, `\b`) {
+		v, err := strconv.ParseInt(low[2:], 2, 64)
 		return int(v), err == nil
 	}
-
-	// bare decimal
 	if v, err := strconv.ParseInt(s, 10, 64); err == nil {
 		return int(v), true
 	}
-
-	// bare hex (e.g. "F", "b4", "ff") — only if it contains a non-decimal hex digit
 	if v, err := strconv.ParseInt(s, 16, 64); err == nil {
 		hasHexChar := false
 		for _, c := range low {
@@ -263,6 +265,5 @@ func parseAnswer(s string) (int, bool) {
 			return int(v), true
 		}
 	}
-
 	return 0, false
 }

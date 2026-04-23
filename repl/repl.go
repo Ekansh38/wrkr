@@ -13,6 +13,7 @@ import (
 
 	"github.com/atotto/clipboard"
 	"github.com/expr-lang/expr"
+	"github.com/fatih/color"
 	"github.com/peterh/liner"
 
 	"github.com/Ekansh38/wrkr/drill"
@@ -243,6 +244,49 @@ func openInEditor(initial string) (string, error) {
 	return strings.TrimSpace(string(data)), nil
 }
 
+// drillQuit returns true if the input is a quit command.
+func drillQuit(s string) bool {
+	s = strings.ToLower(strings.TrimSpace(s))
+	return s == "q" || s == ":q"
+}
+
+// drillColorValue colors a value string by its base prefix.
+func drillColorValue(s string) string {
+	low := strings.ToLower(s)
+	switch {
+	case strings.HasPrefix(low, "0x"):
+		return styleHex(s)
+	case strings.HasPrefix(low, "0b"):
+		return styleBin(s)
+	default:
+		return boldWhite(s)
+	}
+}
+
+// drillColorBase colors the target base label.
+func drillColorBase(base string) string {
+	switch base {
+	case "hex":
+		return styleHex(base)
+	case "bin":
+		return styleBin(base)
+	}
+	return boldWhite(base)
+}
+
+// drillStreakStyle colors the streak number — escalates as it grows.
+func drillStreakStyle(n int) string {
+	s := fmt.Sprintf("%d", n)
+	switch {
+	case n >= 10:
+		return color.New(color.FgGreen, color.Bold).Sprint(s)
+	case n >= 5:
+		return color.New(color.FgYellow).Sprint(s)
+	default:
+		return dimGray(s)
+	}
+}
+
 // runDrill runs an interactive drill session using the existing liner instance.
 func runDrill(line *liner.State) {
 	fmt.Println()
@@ -255,16 +299,16 @@ func runDrill(line *liner.State) {
 	fmt.Println("  Convert to:")
 	fmt.Println("    h) hex    b) bin    d) dec")
 	fmt.Println()
-	fmt.Println("  q to quit at any time")
+	fmt.Printf("  %s to quit\n", dimGray(":q"))
 	fmt.Println()
 
 	modeRaw, err := line.Prompt("  mode [1-4]: ")
-	if err != nil || strings.ToLower(strings.TrimSpace(modeRaw)) == "q" {
+	if err != nil || drillQuit(modeRaw) {
 		fmt.Println()
 		return
 	}
 	convRaw, err := line.Prompt("  to [h/b/d]: ")
-	if err != nil || strings.ToLower(strings.TrimSpace(convRaw)) == "q" {
+	if err != nil || drillQuit(convRaw) {
 		fmt.Println()
 		return
 	}
@@ -302,20 +346,61 @@ func runDrill(line *liner.State) {
 	rng := rand.New(rand.NewSource(time.Now().UnixNano()))
 	fmt.Println()
 
+	var streak, bestStreak, nCorrect, nWrong int
+	correctStyle := color.New(color.FgGreen, color.Bold).SprintFunc()
+
 	for {
 		q := drill.Generate(mode, conv, rng)
-		ans, err := line.Prompt("  " + q.Prompt())
+
+		prompt := fmt.Sprintf("  %s  →  %s: ",
+			drillColorValue(q.From),
+			drillColorBase(q.ToBase),
+		)
+
+		ans, err := line.Prompt(prompt)
 		ans = strings.TrimSpace(ans)
-		if err != nil || strings.ToLower(ans) == "q" {
+		if err != nil || drillQuit(ans) {
 			fmt.Println()
 			break
 		}
+
 		if q.Check(ans) {
-			fmt.Println(boldWhite("  ✓"))
+			streak++
+			nCorrect++
+			if streak > bestStreak {
+				bestStreak = streak
+			}
+			if streak > 1 {
+				fmt.Printf("  %s  %s\n\n", correctStyle("✓"), drillStreakStyle(streak))
+			} else {
+				fmt.Printf("  %s\n\n", correctStyle("✓"))
+			}
 		} else {
-			fmt.Printf("  %s  %s\n", styleError("✗"), dimGray("→ "+q.CorrectAnswer()))
+			prevStreak := streak
+			streak = 0
+			nWrong++
+			if prevStreak > 1 {
+				fmt.Printf("  %s  %s  %s\n\n",
+					styleError("✗"),
+					dimGray("→ "+drillColorValue(q.CorrectAnswer())),
+					dimGray(fmt.Sprintf("(lost %d)", prevStreak)),
+				)
+			} else {
+				fmt.Printf("  %s  %s\n\n",
+					styleError("✗"),
+					dimGray("→ "+drillColorValue(q.CorrectAnswer())),
+				)
+			}
 		}
-		fmt.Println()
+	}
+
+	total := nCorrect + nWrong
+	if total > 0 {
+		fmt.Printf("  %s correct  %s wrong  best streak %s\n\n",
+			boldWhite(fmt.Sprintf("%d", nCorrect)),
+			boldWhite(fmt.Sprintf("%d", nWrong)),
+			drillStreakStyle(bestStreak),
+		)
 	}
 }
 

@@ -91,12 +91,15 @@ func TestCorrectAnswer(t *testing.T) {
 		q    Question
 		want string
 	}{
-		{Question{Value: 15, ToBase: "hex"}, "0xF"},
-		{Question{Value: 255, ToBase: "hex"}, "0xFF"},
-		{Question{Value: 10, ToBase: "bin"}, "0b1010"},        // nibble, no padding
-		{Question{Value: 180, ToBase: "bin"}, "0b10110100"},   // byte range — padded to 8
-		{Question{Value: 255, ToBase: "dec"}, "255"},
-		{Question{Value: 1024, ToBase: "dec"}, "1024"},
+		{Question{Value: 15, ToBase: "hex", Mode: ModeNibble}, "0xF"},
+		{Question{Value: 255, ToBase: "hex", Mode: ModeByte}, "0xFF"},
+		{Question{Value: 5, ToBase: "bin", Mode: ModeNibble}, "0b0101"},     // padded to 4
+		{Question{Value: 10, ToBase: "bin", Mode: ModeNibble}, "0b1010"},    // already 4 bits
+		{Question{Value: 180, ToBase: "bin", Mode: ModeByte}, "0b10110100"}, // already 8 bits
+		{Question{Value: 3, ToBase: "bin", Mode: ModeByte}, "0b00000011"},   // padded to 8
+		{Question{Value: 1024, ToBase: "bin", Mode: ModePowers}, "0b10000000000"}, // no padding
+		{Question{Value: 255, ToBase: "dec", Mode: ModeByte}, "255"},
+		{Question{Value: 1024, ToBase: "dec", Mode: ModePowers}, "1024"},
 	}
 	for _, tc := range cases {
 		got := tc.q.CorrectAnswer()
