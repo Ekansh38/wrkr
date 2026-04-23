@@ -537,12 +537,16 @@ func Run() {
 
 		switch v := result.(type) {
 		case float64:
+			engine.SetLastResult(v)
 			outN(v, sizeCtx, convTarget)
 		case float32:
+			engine.SetLastResult(float64(v))
 			outN(float64(v), sizeCtx, convTarget)
 		case int:
+			engine.SetLastResult(float64(v))
 			outN(float64(v), sizeCtx, convTarget)
 		case int64:
+			engine.SetLastResult(float64(v))
 			outN(float64(v), sizeCtx, convTarget)
 		case string:
 			clipboard.WriteAll(v)

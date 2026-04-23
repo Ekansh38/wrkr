@@ -38,6 +38,12 @@ func DeleteVar(name string) bool {
 	return true
 }
 
+// SetLastResult stores the most recent numeric result as "_" in CalcEnv.
+// Not added to UserVars — ephemeral, not persisted, not shown in vars list.
+func SetLastResult(val float64) {
+	CalcEnv["_"] = val
+}
+
 // GetMergedEnv returns a fresh map combining CalcEnv and UserVars.
 // Always call this immediately before Compile/Run so new variables are visible.
 func GetMergedEnv() map[string]interface{} {
