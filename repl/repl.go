@@ -141,15 +141,7 @@ func openInEditor(initial string) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	// Collapse multiple lines into one expression.
-	lines := strings.Split(strings.TrimSpace(string(data)), "\n")
-	var parts []string
-	for _, l := range lines {
-		if t := strings.TrimSpace(l); t != "" {
-			parts = append(parts, t)
-		}
-	}
-	return strings.Join(parts, " "), nil
+	return strings.TrimSpace(string(data)), nil
 }
 
 // Run starts the interactive REPL.
