@@ -1,183 +1,151 @@
 # wrkr
 
-> README and code are AI generated. Built for personal use. No guarantees. Use at your own risk.
+> AI generated. Personal use. No guarantees.
 
-A CLI calculator built for engineers who are tired of reaching for Python or a spreadsheet to do basic math while working. It understands units, remembers variables between expressions, and copies the right thing to your clipboard automatically.
+Terminal calculator that knows units, remembers variables, and copies results to clipboard. Built because `python3 -c "print(128*1024*1024/4096)"` is too many keystrokes.
 
----
+## Why
 
-## Why I built this
+`bc` doesn't know what a megabyte is. Spotlight doesn't remember your block size. This does.
 
-Standard calculators don't know what a megabyte is. They don't remember that your block size is 4096. They make you convert units manually. This one does not.
+Filesystem/OS work means constant block count math, B-tree depth estimates, working set sizing. One-liner Python works but the context switch is annoying. This lives in the terminal and already has the units loaded.
 
-I work on filesystems and OS stuff. I constantly need to know how many blocks fit on a disk, how deep a B-tree will be, how much RAM a working set needs. I was tired of opening Python just to type one line. So I built a calculator that lives in the terminal and already knows the units I care about.
+## Pipeline
 
----
+Raw input goes through these stages before hitting the evaluator:
 
-## Who it is for
+```
+1. prefix normalization   \xFF -> 0xFF, ob101 -> 0b101
+2. naked base notation    FF hex -> 0xFF, 101 bin -> 0b101
+3. base conversion        0x123 hex to bin -> bin(0x123)
+4. unit conversion        50 mi to km -> (50 * (1609.344 / 1000))
+5. implicit multiply      5 mb -> (5 * 1048576)
+6. base translation       0xFF -> 255.000000
+7. AST eval               expr-lang/expr, proper operator precedence
+```
 
-- Systems and kernel engineers doing memory, storage, and bandwidth math
-- Filesystem engineers working through block counts, inode ratios, RAID geometry
-- Gamedevs calculating trajectories, distances, upgrade curves, production chains
-- Any developer who does quick back-of-envelope math in the terminal
+All values are float64 internally. Units are multipliers against a baseline (bytes for data, meters for distance).
 
----
+## Units
 
-## How it works
+Number adjacent to a unit name = implicit multiply.
 
-Every input goes through a preprocessing pipeline before it hits the evaluator:
-
-1. Typo fixes (`0b`, `0x`, `0o` prefix normalization)
-2. Natural language base notation (`FF hex` becomes `0xFF`)
-3. Base conversion detection (`0x123 hex to bin` becomes `bin(0x123)`)
-4. Unit conversion expansion (`50 mi to km` becomes the actual math)
-5. Implicit multiplication (`5 mb` becomes `(5 * 1048576)`)
-6. Base literal translation (`0xFF` becomes `255.0` so the evaluator can handle it)
-7. AST evaluation via expr-lang/expr (proper BODMAS, no regex math)
-
-The pipeline runs on every input. The evaluator gets clean float64 expressions every time.
-
-Units are stored as multipliers relative to a baseline (bytes for data, meters for distance). All math stays in that baseline. Output modes handle the presentation layer separately from the calculation layer.
-
----
-
-## Features
-
-### Units
-
-Write a number next to a unit name and they multiply automatically.
-
-Data: `b`, `bit`/`bits`, `kb`, `mb`, `gb`, `tb`
-Distance: `m`, `km`, `cm`, `mm`, `mi`, `ft`, `in`
+```
+data:      b  bit  kb  mb  gb  tb
+distance:  m  km  cm  mm  mi  ft  in
+```
 
 ```
 5 mb
 (512 * kb) + (256 * kb)
 2 * tb / (4 * kb)
-hypot(3, 4)
 ```
 
-### Unit conversions
+## Unit conversions
 
 ```
 50 mi to km
-100 ft to m
 1 gb to mb
 1 mb to bits
 30 cm to in
 ```
 
-The result is always shown with the target unit label and bypasses your current output mode — so `1 gb to mb` shows `1024 MB` even if you're in hex mode.
+Result shows the target unit label and ignores the current output mode.
 
-### Base literals (input)
+## Base input
 
-Three ways to write a number in a non-decimal base:
-
-| Style | Example | Means |
-|-------|---------|-------|
-| Prefix | `0xFF`, `0b1010`, `0o17` | standard notation |
-| Natural language | `FF hex`, `101 bin`, `17 octal` | suffix names the base the digits are in |
-| Typo shorthand | `\xFF`, `\b1010`, `\o17` | backslash works as `0` |
-
-### Base conversions (output)
-
-Three ways to convert a number to a different base — pick whichever reads most naturally:
-
-| Style | Example | Result |
-|-------|---------|--------|
-| Function call | `hex(255)` | `0xFF` |
-| `to` keyword | `255 to bin` | `0b11111111` |
-| Annotated source | `0x123 hex to bin` | `0b100100011` |
-
-The annotated source form (`0x123 hex to bin`) is useful when you already have a prefixed literal and want to reformat it. The middle word tells the calculator what base you're coming from; `to X` says where to go. All three forms produce the same result.
+Three equivalent ways to write a non-decimal literal:
 
 ```
-hex(255)           →  0xFF
-bin(255)           →  0b11111111
-octal(255)         →  0o377
-dec(0xFF)          →  255
-255 to hex         →  0xFF
-0xFF to bin        →  0b11111111
-0x123 hex to bin   →  0b100100011
-0b1010 bin to hex  →  0xA
+prefix:    0xFF    0b1010    0o17
+natural:   FF hex  101 bin   17 octal   (suffix = base the digits are in)
+typo:      \xFF    \b1010    \o17       (backslash = 0)
 ```
 
-### Output modes
+## Base conversion
 
-Switch with `mode <name>`. Only the explicit `mode` prefix switches modes — bare words like `hex` or `bin` evaluate as expressions, not mode switches.
+Three equivalent ways to reformat a number:
 
-| mode | terminal | clipboard |
-|------|----------|-----------|
-| `dec` | `1048576  [1 MB]` | `1048576` |
-| `size` | `1 MB` | `1` |
-| `bytes` | `1048576 B` | `1048576` |
-| `bits` | `8388608 bits` | `8388608` |
-| `hex` | `0x100000  [Hex]` | `0x100000` |
-| `bin` | `0b100000000000000000000  [Bin]` | `0b100000000000000000000` |
-| `oct` | `0o4000000  [Oct]` | `0o4000000` |
+```
+hex(255)           -> 0xFF
+255 to hex         -> 0xFF
+0xFF to bin        -> 0b11111111
+0x123 hex to bin   -> 0b100100011    (middle word = source base, to X = target)
+0b1010 bin to hex  -> 0xA
+dec(0xFF)          -> 255
+```
 
-The **Smart Hint** (dec mode) adds the `[1 MB]` bracket automatically when your expression involves a data size unit. If units cancel each other out (e.g. `(256 * mb) / (4 * gb) * 1000` = 62.5 — units cancelled, result is not bytes) the hint stays silent to avoid misleading you.
+## Output modes
 
-### User variables
+`mode <name>` to switch. Bare `hex`/`bin` evaluate as expressions, not mode switches.
 
-Variables persist for the life of the process.
+```
+mode     terminal                          clipboard
+dec      1048576  [1 MB]                   1048576
+size     1 MB                              1
+bytes    1048576 B                         1048576
+bits     8388608 bits                      8388608
+hex      0x100000  [Hex]                   0x100000
+bin      0b100000000000000000000  [Bin]    0b100000000000000000000
+oct      0o4000000  [Oct]                  0o4000000
+```
+
+dec mode adds a size hint `[1 MB]` when the expression involves a data unit. Suppressed when units cancel out (e.g. `(256 * mb) / (4 * gb) * 1000` = 62.5, units cancelled, result is dimensionless).
+
+## Variables
+
+Saved to `~/.wrkr_vars.json`. Offered for reload on next launch.
 
 ```
 block = 4096
 page  = 4 * kb
 journal = 128 * mb
 
-journal / block       use them in expressions
-vars                  list all variables
-del block             remove a variable
+journal / block
+vars              list
+del block         remove
 ```
 
-### Math functions
+## Math
 
 ```
-sin, cos, tan, hypot, sqrt, abs, log, log2, log10, pow, round, floor, ceil, pi
+sin  cos  tan  hypot  sqrt  abs  log  log2  log10  pow  round  floor  ceil  pi
 ```
 
-### Autocorrect
+## Autocorrect
 
-If you mistype a unit or function name, it finds the closest match via Levenshtein distance. Before asking "did you mean X?", it silently compiles the suggested fix. If the fix produces garbage math, it says nothing.
+Levenshtein match on unknown tokens. Suggestion only shown if the corrected expression compiles cleanly. Silent otherwise.
 
----
+## Debug
+
+```
+debug <expr>    show every pipeline stage and final result
+```
+
+Useful when a conversion doesn't produce what you expect.
 
 ## Install
 
-Requires Go 1.21+. Get it at https://go.dev/dl/
-
-**Option 1: go install (recommended)**
+Requires Go 1.21+: https://go.dev/dl/
 
 ```
 go install github.com/Ekansh38/wrkr@latest
-wrkr
 ```
 
-If `wrkr` is not found, add Go's bin directory to your PATH:
+If not found after install:
 
 ```
 export PATH="$HOME/go/bin:$PATH"
+source ~/.zshrc
 ```
 
-Then reload: `source ~/.zshrc`
-
-**Updating**
-
-`go install` does not auto-update. Re-run the same command to get the latest version:
-
-```
-go install github.com/Ekansh38/wrkr@latest
-```
-
-If the module proxy has a stale cached version, bypass it:
+To update, re-run the same command. If the proxy has a stale cache:
 
 ```
 GOPROXY=direct go install github.com/Ekansh38/wrkr@latest
 ```
 
-**Option 2: build from source**
+Build from source:
 
 ```
 git clone git@github.com:Ekansh38/wrkr.git
@@ -186,21 +154,17 @@ go build -o wrkr .
 sudo mv wrkr /usr/local/bin/wrkr
 ```
 
----
+## Precision
 
-## Float precision
+IEEE 754 float64. Output capped at 12 decimal places to suppress noise (`1.60934400000000005` becomes `1.609344`). Not suitable for >12 significant decimal places.
 
-All values are IEEE 754 float64 (~15–16 significant digits). Output is capped at 12 decimal places to suppress representation noise. Without this, `1 mi to km` would show `1.60934400000000005` instead of `1.609344`. If you need more than 12 decimal places, this tool is the wrong choice.
-
----
-
-## Quick reference
+## Help
 
 ```
-help math       trig and math functions
-help systems    data sizes and base literals
-help units      unit conversion syntax
-help modes      output mode table
-help vars       variable assignment
-help all        everything
+help math
+help systems
+help units
+help modes
+help vars
+help all
 ```
