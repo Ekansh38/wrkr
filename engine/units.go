@@ -93,4 +93,25 @@ func init() {
 		b := bits
 		CalcEnv[fmt.Sprintf("oct%d", b)] = func(f float64) string { return FormatOctN(f, b) }
 	}
+
+	// Integer cast functions: u8/s8 … u128/s128.
+	// Return float64 so results compose with arithmetic (e.g. u8(200) + u8(100)).
+	for _, spec := range []struct {
+		name   string
+		bits   int
+		signed bool
+	}{
+		{"u8", 8, false}, {"s8", 8, true},
+		{"u16", 16, false}, {"s16", 16, true},
+		{"u32", 32, false}, {"s32", 32, true},
+		{"u64", 64, false}, {"s64", 64, true},
+		{"u128", 128, false}, {"s128", 128, true},
+	} {
+		b, sg := spec.bits, spec.signed
+		if sg {
+			CalcEnv[spec.name] = func(f float64) float64 { return CastSigned(f, b) }
+		} else {
+			CalcEnv[spec.name] = func(f float64) float64 { return CastUnsigned(f, b) }
+		}
+	}
 }

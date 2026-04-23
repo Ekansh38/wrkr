@@ -124,6 +124,94 @@ Positive values are zero-padded to the full width. Values outside the range trun
 hex32(_)            -> 0xFFFFFFFC
 ```
 
+## Two modes: format and type
+
+The calculator has two orthogonal mode settings:
+
+| setting | what it does | examples |
+|---------|-------------|---------|
+| **format mode** (`mode`) | how results are displayed | `dec` `hex` `bin` `oct` `size` `bytes` `bits` `bin32` … |
+| **type mode** (`type`) | integer semantics applied to results | `auto` `u8` `s8` `u16` `s16` `u32` `s32` `u64` `s64` `u128` `s128` |
+
+They are independent: `mode hex` + `type u32` shows 32-bit unsigned results in hex.
+
+**Format mode** was described above. **Type mode** is covered next.
+
+## Type mode
+
+`type auto` is the default. Pure float64 math — existing users are completely unaffected.
+
+Setting a type mode wraps every numeric result to that integer range:
+
+```
+type u8
+
+200 + 50    -> 250  [u8]
+200 + 100   -> 44  [u8 ovf]     overflow detected, result wrapped
+```
+
+Signed types reinterpret the bit pattern:
+
+```
+type s8
+
+-5 + 10     -> 5  [s8]
+127 + 1     -> -128  [s8 ovf]   wraps from max to min
+```
+
+Switch back to pure math: `type auto` (or `type off`).
+
+### Cast functions
+
+`u8(x)` through `u128(x)` (unsigned), `s8(x)` through `s128(x)` (signed). Return float64 so they compose with arithmetic.
+
+```
+u8(246)              -> 246        stays in range
+u8(256)              -> 0          wraps
+u8(300)              -> 44         300 mod 256
+
+s8(246)              -> -10        bit pattern reinterpret (246 - 256)
+s8(255)              -> -1
+s8(128)              -> -128       one past max wraps to min
+
+s8(-5)               -> -5         in range, unchanged
+s8(-129)             -> 127        underflow wraps to max
+
+u8(200) + u8(100)    -> 300        functions return float64, no implicit wrap
+u8(u8(200) + u8(100)) -> 44        explicit second cast wraps the sum
+```
+
+### `to` keyword with type names
+
+```
+246 to u8            -> 246
+246 to s8            -> -10
+0b11110110 to s8     -> -10       binary literal reinterpreted as signed
+0xFFFFFFFB to s32    -> -5        32-bit hex to signed
+-1 to u16            -> 65535     -1 as unsigned 16-bit
+_ to s8              applies type cast to last result
+```
+
+The prompt shows `[mode/type]` when a type is active:
+
+```
+[dec/u8]
+> 200 + 100
+44  [u8 ovf]
+```
+
+### Type mode is persisted
+
+Both `mode` and `type` are saved to `~/.wrkr_config.json` and restored on next launch.
+
+## Settings
+
+```
+setting clipboard on     copy results to clipboard (default)
+setting clipboard off    disable clipboard copy
+setting clipboard        query current value
+```
+
 ## Variables
 
 Saved to `~/.wrkr_vars.json`. Autoload preference in `~/.wrkr_config.json`.
@@ -234,6 +322,8 @@ help math
 help systems
 help units
 help modes
+help types
 help vars
+help settings
 help all
 ```

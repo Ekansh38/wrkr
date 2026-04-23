@@ -23,37 +23,53 @@ func configFilePath() (string, error) {
 }
 
 type wrkrConfig struct {
-	Autoload bool `json:"autoload"`
+	Autoload   bool   `json:"autoload"`
+	FormatMode string `json:"format_mode,omitempty"`
+	TypeMode   string `json:"type_mode,omitempty"`
+	Clipboard  *bool  `json:"clipboard,omitempty"` // nil = unset → default on
 }
 
-// ReadAutoload returns true if the user has chosen "always load" previously.
-func ReadAutoload() bool {
+// ReadAppConfig reads ~/.wrkr_config.json and returns the parsed config.
+// Returns a zero-value config on any error (safe to use as defaults).
+func ReadAppConfig() wrkrConfig {
 	path, err := configFilePath()
 	if err != nil {
-		return false
+		return wrkrConfig{}
 	}
 	data, err := os.ReadFile(path)
 	if err != nil {
-		return false
+		return wrkrConfig{}
 	}
 	var cfg wrkrConfig
 	if err := json.Unmarshal(data, &cfg); err != nil {
-		return false
+		return wrkrConfig{}
 	}
-	return cfg.Autoload
+	return cfg
 }
 
-// SetAutoload writes the autoload preference to ~/.wrkr_config.json.
-func SetAutoload(enabled bool) error {
+// SaveAppConfig writes cfg to ~/.wrkr_config.json.
+func SaveAppConfig(cfg wrkrConfig) error {
 	path, err := configFilePath()
 	if err != nil {
 		return err
 	}
-	data, err := json.MarshalIndent(wrkrConfig{Autoload: enabled}, "", "  ")
+	data, err := json.MarshalIndent(cfg, "", "  ")
 	if err != nil {
 		return err
 	}
 	return os.WriteFile(path, data, 0644)
+}
+
+// ReadAutoload returns true if the user has chosen "always load" previously.
+func ReadAutoload() bool {
+	return ReadAppConfig().Autoload
+}
+
+// SetAutoload writes the autoload preference while preserving other config fields.
+func SetAutoload(enabled bool) error {
+	cfg := ReadAppConfig()
+	cfg.Autoload = enabled
+	return SaveAppConfig(cfg)
 }
 
 // SavedVarsFile holds the contents of the on-disk vars file plus its path.

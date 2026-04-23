@@ -88,6 +88,41 @@ func printHelp(topic string) {
 		fmt.Println("  suppressed when units cancel (e.g. mb/gb*1000 = dimensionless).")
 		fmt.Println()
 		fmt.Println("  bare 'hex'/'bin' evaluate as expressions. only 'mode hex' switches.")
+	case "types", "type", "integers", "int":
+		fmt.Println("type modes  (integer semantics, orthogonal to format mode)")
+		fmt.Println()
+		fmt.Println("  type <name>    set integer type constraint")
+		fmt.Println("  type           query current")
+		fmt.Println()
+		fmt.Println("  type auto      default: pure float64 math, no wrapping")
+		fmt.Println()
+		fmt.Println("  unsigned:  u8  u16  u32  u64  u128")
+		fmt.Println("  signed:    s8  s16  s32  s64  s128")
+		fmt.Println()
+		fmt.Println("  with type u8 active:")
+		fmt.Println("    255 + 1    -> 0  [u8 ovf]    overflow detected + wrapped")
+		fmt.Println("    200 + 50   -> 250  [u8]")
+		fmt.Println()
+		fmt.Println("  with type s8 active:")
+		fmt.Println("    127 + 1    -> -128  [s8 ovf]")
+		fmt.Println("    -5 + 10    -> 5  [s8]")
+		fmt.Println()
+		fmt.Println("  cast functions (explicit, no global mode needed):")
+		fmt.Println("    u8(246)          -> 246     unsigned cast")
+		fmt.Println("    s8(246)          -> -10     signed reinterpret")
+		fmt.Println("    u8(256)          -> 0       overflow wraps")
+		fmt.Println("    s16(-32769)      -> 32767   wrap to s16 max")
+		fmt.Println()
+		fmt.Println("  to keyword (inline cast):")
+		fmt.Println("    246 to u8        -> 246")
+		fmt.Println("    0b11110110 to s8 -> -10")
+		fmt.Println("    _ to u32         applies type to last result")
+		fmt.Println()
+		fmt.Println("  cast functions return float64 — compose with arithmetic:")
+		fmt.Println("    u8(200) + u8(100)    -> 44  (300 wrapped to u8)")
+		fmt.Println()
+		fmt.Println("  type mode is independent of format mode:")
+		fmt.Println("    mode hex + type u8 -> results shown in hex, wrapped to u8")
 	case "vars", "variables", "memory":
 		fmt.Println("variables")
 		fmt.Println()
@@ -105,12 +140,21 @@ func printHelp(topic string) {
 		fmt.Println()
 		fmt.Println("  saved to ~/.wrkr_vars.json, reloaded on next launch")
 		fmt.Println("  mode names (hex, bin, dec...) are reserved, cannot be used as var names")
+	case "settings", "setting", "config":
+		fmt.Println("settings")
+		fmt.Println()
+		fmt.Println("  setting clipboard on|off    toggle clipboard copy (default: on)")
+		fmt.Println("  setting clipboard           query current value")
+		fmt.Println()
+		fmt.Println("  settings are saved to ~/.wrkr_config.json")
 	case "all":
 		printHelp("math")
 		printHelp("systems")
 		printHelp("units")
 		printHelp("modes")
+		printHelp("types")
 		printHelp("vars")
+		printHelp("settings")
 	default:
 		fmt.Println("help math      trig, logs, pow")
 		fmt.Println("help systems   base literals and conversion")
@@ -191,6 +235,24 @@ func Run() {
 	setupLiner()
 	defer func() { line.Close() }()
 
+	// Restore persisted settings (format mode, type mode, clipboard).
+	{
+		cfg := engine.ReadAppConfig()
+		if cfg.FormatMode != "" {
+			if m, ok := engine.ModeMap[cfg.FormatMode]; ok {
+				engine.CurrentMode = m
+			}
+		}
+		if cfg.TypeMode != "" {
+			if t, ok := engine.TypeModeMap[cfg.TypeMode]; ok {
+				engine.CurrentTypeMode = t
+			}
+		}
+		if cfg.Clipboard != nil {
+			engine.ClipboardEnabled = *cfg.Clipboard
+		}
+	}
+
 	fmt.Println("wrkr  help all / exit")
 
 	// Saved variable prompt.
@@ -258,7 +320,11 @@ func Run() {
 			line.AppendHistory(rawInput)
 			fmt.Printf("\n%s %s\n", dimGray(">"), rawInput)
 		} else {
-			fmt.Printf("\n%s\n", colorMode("["+engine.CurrentMode+"]"))
+			if engine.CurrentTypeMode != "auto" {
+				fmt.Printf("\n%s\n", colorMode("["+engine.CurrentMode+"/"+engine.CurrentTypeMode+"]"))
+			} else {
+				fmt.Printf("\n%s\n", colorMode("["+engine.CurrentMode+"]"))
+			}
 			var err error
 			rawInput, err = line.Prompt("> ")
 			if err != nil {
@@ -455,9 +521,84 @@ func Run() {
 				printHelp("modes")
 			} else if newMode, ok := engine.ModeMap[modeCmd]; ok {
 				engine.CurrentMode = newMode
+				cfg := engine.ReadAppConfig()
+				cfg.FormatMode = newMode
+				engine.SaveAppConfig(cfg)
 				fmt.Printf("mode -> %s\n", colorMode(newMode))
 			} else {
 				fmt.Printf("%s\n  tip: help modes\n", styleError("unknown mode: "+modeCmd))
+			}
+			continue
+		}
+
+		// Type mode query / switch.
+
+		if lowerInput == "type" {
+			if engine.CurrentTypeMode == "auto" {
+				fmt.Printf("current type: %s  (pure float64, no wrapping)\n", engine.CurrentTypeMode)
+			} else {
+				fmt.Printf("current type: %s\n", engine.CurrentTypeMode)
+			}
+			continue
+		}
+		if strings.HasPrefix(lowerInput, "type ") {
+			typeCmd := strings.TrimSpace(strings.TrimPrefix(lowerInput, "type "))
+			if typeCmd == "help" {
+				printHelp("types")
+			} else if newType, ok := engine.TypeModeMap[typeCmd]; ok {
+				engine.CurrentTypeMode = newType
+				cfg := engine.ReadAppConfig()
+				cfg.TypeMode = newType
+				engine.SaveAppConfig(cfg)
+				if newType == "auto" {
+					fmt.Printf("type -> %s  (pure float64, no wrapping)\n", newType)
+				} else {
+					fmt.Printf("type -> %s\n", newType)
+				}
+			} else {
+				fmt.Printf("%s\n  tip: help types\n", styleError("unknown type: "+typeCmd))
+			}
+			continue
+		}
+
+		// Settings.
+
+		if lowerInput == "setting" || strings.HasPrefix(lowerInput, "setting ") {
+			parts := strings.Fields(rawInput)
+			if len(parts) < 2 {
+				printHelp("settings")
+				continue
+			}
+			switch strings.ToLower(parts[1]) {
+			case "clipboard":
+				if len(parts) == 2 {
+					status := "on"
+					if !engine.ClipboardEnabled {
+						status = "off"
+					}
+					fmt.Printf("clipboard: %s\n", status)
+				} else {
+					switch strings.ToLower(parts[2]) {
+					case "on":
+						engine.ClipboardEnabled = true
+						cfg := engine.ReadAppConfig()
+						t := true
+						cfg.Clipboard = &t
+						engine.SaveAppConfig(cfg)
+						fmt.Println("clipboard: on")
+					case "off":
+						engine.ClipboardEnabled = false
+						cfg := engine.ReadAppConfig()
+						f := false
+						cfg.Clipboard = &f
+						engine.SaveAppConfig(cfg)
+						fmt.Println("clipboard: off")
+					default:
+						fmt.Println(styleError("usage: setting clipboard on|off"))
+					}
+				}
+			default:
+				fmt.Println(styleError("unknown setting. try: setting clipboard on|off"))
 			}
 			continue
 		}
@@ -559,41 +700,59 @@ func Run() {
 
 		switch v := result.(type) {
 		case float64:
-			engine.SetLastResult(v)
 			outN(v, sizeCtx, convTarget)
 		case float32:
-			engine.SetLastResult(float64(v))
 			outN(float64(v), sizeCtx, convTarget)
 		case int:
-			engine.SetLastResult(float64(v))
 			outN(float64(v), sizeCtx, convTarget)
 		case int64:
-			engine.SetLastResult(float64(v))
 			outN(float64(v), sizeCtx, convTarget)
 		case string:
-			clipboard.WriteAll(v)
+			// Update _ so "bin32(-5)" then "_ + 1" works as expected.
+			if f, ok := engine.ParseResultString(v); ok {
+				engine.SetLastResult(f)
+			}
+			if engine.ClipboardEnabled {
+				clipboard.WriteAll(v)
+			}
 			fmt.Println(colorizeResult(v))
 		case func(float64) string, func(float64) float64:
 			fmt.Println(styleError("error: function needs arguments, e.g. bin(255)"))
 		default:
 			s := fmt.Sprintf("%v", v)
-			clipboard.WriteAll(s)
+			if engine.ClipboardEnabled {
+				clipboard.WriteAll(s)
+			}
 			fmt.Println(colorizeResult(s))
 		}
 	}
 }
 
-// outN formats a numeric result, writes clipboard, and prints with colors.
+// outN applies type mode, updates _, formats, copies to clipboard, and prints.
 func outN(val float64, sizeCtx engine.SizeUnitContext, convTarget string) {
+	wrapped, overflowed := engine.ApplyTypeMode(val)
+	engine.SetLastResult(wrapped)
+
+	var typeHint string
+	if engine.CurrentTypeMode != "auto" {
+		if overflowed {
+			typeHint = engine.CurrentTypeMode + " ovf"
+		} else {
+			typeHint = engine.CurrentTypeMode
+		}
+	}
+
 	var terminal, clip string
 	if convTarget != "" {
-		terminal = engine.FormatWithTargetUnit(val, convTarget)
-		clip = engine.FormatDecimal(val)
+		terminal = engine.FormatWithTargetUnit(wrapped, convTarget)
+		clip = engine.FormatDecimal(wrapped)
 	} else {
-		terminal = engine.FormatTerminal(val, sizeCtx)
-		clip = engine.FormatClipboard(val)
+		terminal = engine.FormatTerminal(wrapped, sizeCtx, typeHint)
+		clip = engine.FormatClipboard(wrapped)
 	}
-	clipboard.WriteAll(clip)
+	if engine.ClipboardEnabled {
+		clipboard.WriteAll(clip)
+	}
 	fmt.Println(colorizeResult(terminal))
 }
 

@@ -188,7 +188,7 @@ func TestFormat_SmartHint_ShowsForKB(t *testing.T) {
 	engine.CurrentMode = "dec"
 	defer func() { engine.CurrentMode = prev }()
 
-	s := engine.FormatTerminal(4096, 1) // sizeCtx=1: one distinct size unit type
+	s := engine.FormatTerminal(4096, 1, "") // sizeCtx=1: one distinct size unit type
 	if s == "4096" {
 		t.Error("Smart Hint not shown for 4096 bytes (1 KB) with sizeCtx=1")
 	}
@@ -200,10 +200,10 @@ func TestFormat_SmartHint_BytesLabel_SingleUnit(t *testing.T) {
 	engine.CurrentMode = "dec"
 	defer func() { engine.CurrentMode = prev }()
 
-	s := engine.FormatTerminal(7.8125, 1)
+	s := engine.FormatTerminal(7.8125, 1, "")
 	want := "7.8125  [bytes]"
 	if s != want {
-		t.Errorf("FormatTerminal(7.8125, 1) = %q, want %q", s, want)
+		t.Errorf("FormatTerminal(7.8125, 1, \"\") = %q, want %q", s, want)
 	}
 }
 
@@ -213,9 +213,9 @@ func TestFormat_SmartHint_SilentForCancelledUnits(t *testing.T) {
 	engine.CurrentMode = "dec"
 	defer func() { engine.CurrentMode = prev }()
 
-	s := engine.FormatTerminal(62.5, 2)
+	s := engine.FormatTerminal(62.5, 2, "")
 	if s != "62.5" {
-		t.Errorf("FormatTerminal(62.5, 2) = %q, want plain %q", s, "62.5")
+		t.Errorf("FormatTerminal(62.5, 2, \"\") = %q, want plain %q", s, "62.5")
 	}
 }
 

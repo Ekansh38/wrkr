@@ -147,12 +147,27 @@ func ProcessFormatting(input string) string {
 		return match
 	})
 
-	// Pattern 2 (two-token): "(number) to (format)" → "format(number)"
-	re2 := regexp.MustCompile(`(?i)([-+]?` + numPat + `)\s+to\s+(` + fmtAlt + `)`)
+	// Pattern 2 (two-token): "(value) to (format)" → "format(value)"
+	// value = numeric literal OR identifier (covers _ to dec, block to hex, pi to bin, etc.)
+	identPat := `[a-zA-Z_][a-zA-Z0-9_]*`
+	lhsPat := `(?:[-+]?` + numPat + `|` + identPat + `)`
+	re2 := regexp.MustCompile(`(?i)(` + lhsPat + `)\s+to\s+(` + fmtAlt + `)`)
 	input = re2.ReplaceAllStringFunc(input, func(match string) string {
 		parts := re2.FindStringSubmatch(match)
 		if len(parts) == 3 {
 			return fmt.Sprintf("%s(%s)", normalizeFormatFn(parts[2]), parts[1])
+		}
+		return match
+	})
+
+	// Pattern 3 (type-cast): "(value) to (u8|s8|…)" → "u8(value)"
+	// Handles explicit integer type casts inline: "246 to u8", "_ to s16", etc.
+	typeAlt := `(?:u8|s8|u16|s16|u32|s32|u64|s64|u128|s128)`
+	re3 := regexp.MustCompile(`(?i)(` + lhsPat + `)\s+to\s+(` + typeAlt + `)`)
+	input = re3.ReplaceAllStringFunc(input, func(match string) string {
+		parts := re3.FindStringSubmatch(match)
+		if len(parts) == 3 {
+			return fmt.Sprintf("%s(%s)", strings.ToLower(parts[2]), parts[1])
 		}
 		return match
 	})

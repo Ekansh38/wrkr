@@ -226,48 +226,53 @@ func HumanReadableSize(bytes float64) (coef string, label string) {
 //	   (e.g. "62.5 bits" → "7.8125  [bytes]")
 //	2+ multiple unit types that may cancel -- only hint when result is >= 1 KB
 //	   (e.g. "(256*mb)/(4*gb)*1000 = 62.5" stays silent)
-func FormatTerminal(val float64, sizeCtx SizeUnitContext) string {
+//
+// typeHint, if non-empty, is appended as an extra label (e.g. "u8", "s16 ovf").
+func FormatTerminal(val float64, sizeCtx SizeUnitContext, typeHint string) string {
+	appendType := func(s string) string {
+		if typeHint == "" {
+			return s
+		}
+		return s + "  [" + typeHint + "]"
+	}
+
 	if base, bits, ok := ParseWidthMode(CurrentMode); ok {
 		switch base {
 		case "bin":
-			return fmt.Sprintf("%s  [Bin%d]", FormatBinN(val, bits), bits)
+			return appendType(fmt.Sprintf("%s  [Bin%d]", FormatBinN(val, bits), bits))
 		case "hex":
-			return fmt.Sprintf("%s  [Hex%d]", FormatHexN(val, bits), bits)
+			return appendType(fmt.Sprintf("%s  [Hex%d]", FormatHexN(val, bits), bits))
 		case "oct":
-			return fmt.Sprintf("%s  [Oct%d]", FormatOctN(val, bits), bits)
+			return appendType(fmt.Sprintf("%s  [Oct%d]", FormatOctN(val, bits), bits))
 		}
 	}
 	switch CurrentMode {
 	case "hex":
-		return fmt.Sprintf("%s  [Hex]", FormatHex(val))
+		return appendType(fmt.Sprintf("%s  [Hex]", FormatHex(val)))
 	case "bin":
-		return fmt.Sprintf("%s  [Bin]", FormatBin(val))
+		return appendType(fmt.Sprintf("%s  [Bin]", FormatBin(val)))
 	case "oct", "octal":
-		return fmt.Sprintf("%s  [Oct]", FormatOct(val))
+		return appendType(fmt.Sprintf("%s  [Oct]", FormatOct(val)))
 	case "size":
 		coef, label := HumanReadableSize(val)
-		return fmt.Sprintf("%s %s", coef, label)
+		return appendType(fmt.Sprintf("%s %s", coef, label))
 	case "bytes":
-		return fmt.Sprintf("%s B", FormatDecimal(val))
+		return appendType(fmt.Sprintf("%s B", FormatDecimal(val)))
 	case "bits":
-		return fmt.Sprintf("%s bits", FormatDecimal(val*8))
+		return appendType(fmt.Sprintf("%s bits", FormatDecimal(val*8)))
 	default: // "dec"
 		raw := FormatDecimal(val)
 		if sizeCtx == 0 {
-			return raw
+			return appendType(raw)
 		}
 		coef, label := HumanReadableSize(val)
 		if label != "B" {
-			// Result is >= 1 KB: always show the scaled hint.
-			return fmt.Sprintf("%s  [%s %s]", raw, coef, label)
+			return appendType(fmt.Sprintf("%s  [%s %s]", raw, coef, label))
 		}
-		// Result is < 1 KB (bytes range).
-		// Only label it when there is exactly one size unit type: the units
-		// cannot have cancelled, so the result really is a byte count.
 		if sizeCtx == 1 {
-			return fmt.Sprintf("%s  [bytes]", raw)
+			return appendType(fmt.Sprintf("%s  [bytes]", raw))
 		}
-		return raw
+		return appendType(raw)
 	}
 }
 
