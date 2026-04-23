@@ -229,8 +229,8 @@ func BuildASTString(input string) string {
 	return s
 }
 
-// ExpandConstants replaces known unit names and pi with their numeric values.
-// Used only for the debug "expanded" display step — not part of the eval pipeline.
+// ExpandConstants replaces unit names, pi, and user variables with their
+// numeric values. Used only for the debug "expanded" display step.
 func ExpandConstants(input string) string {
 	re := regexp.MustCompile(`\b([a-zA-Z][a-zA-Z0-9]*)\b`)
 	return re.ReplaceAllStringFunc(input, func(match string) string {
@@ -240,6 +240,9 @@ func ExpandConstants(input string) string {
 		}
 		if lower == "pi" {
 			return "3.141592653589793"
+		}
+		if v, ok := UserVars[match]; ok {
+			return FormatDecimal(v.(float64))
 		}
 		return match
 	})
