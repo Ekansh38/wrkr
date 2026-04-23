@@ -909,7 +909,8 @@ func Run() {
 				}
 			}
 
-			cleaned := engine.FixBaseTypos(exprStr)
+			cleaned := engine.StripNumericSeparators(exprStr)
+			cleaned = engine.FixBaseTypos(cleaned)
 			cleaned = engine.FixNakedBases(cleaned)
 			ast := engine.BuildASTString(cleaned)
 			env := engine.GetMergedEnv()
@@ -939,7 +940,8 @@ func Run() {
 
 		// Standard expression pipeline.
 
-		cleanedInput := engine.FixBaseTypos(rawInput)
+		cleanedInput := engine.StripNumericSeparators(rawInput)
+		cleanedInput = engine.FixBaseTypos(cleanedInput)
 		cleanedInput = engine.FixNakedBases(cleanedInput)
 		cleanedInput = strings.ReplaceAll(cleanedInput, " into ", " to ")
 		cleanedInput = strings.ReplaceAll(cleanedInput, " in to ", " to ")
