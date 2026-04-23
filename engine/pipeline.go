@@ -102,9 +102,11 @@ func ProcessConversions(input string) string {
 	return re.ReplaceAllStringFunc(input, func(match string) string {
 		parts := re.FindStringSubmatch(match)
 		if len(parts) == 4 {
-			rate1, ok1 := UnitRates[strings.ToLower(parts[2])]
-			rate2, ok2 := UnitRates[strings.ToLower(parts[3])]
-			if ok1 && ok2 {
+			src := strings.ToLower(parts[2])
+			dst := strings.ToLower(parts[3])
+			rate1, ok1 := UnitRates[src]
+			rate2, ok2 := UnitRates[dst]
+			if ok1 && ok2 && UnitCategory[src] == UnitCategory[dst] {
 				val := TranslateBases(parts[1])
 				return fmt.Sprintf("(%s * (%s / %s))", val, FormatDecimal(rate1), FormatDecimal(rate2))
 			}
@@ -227,7 +229,7 @@ func DetectConversionTarget(input string) string {
 		dst := strings.ToLower(m[3])
 		_, srcOK := UnitRates[src]
 		_, dstOK := UnitRates[dst]
-		if srcOK && dstOK {
+		if srcOK && dstOK && UnitCategory[src] == UnitCategory[dst] {
 			return dst
 		}
 	}

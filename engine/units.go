@@ -18,6 +18,10 @@ var UnitRates = make(map[string]float64)
 // SizeUnitAliases is the set of data-size aliases; used for Smart Hint detection.
 var SizeUnitAliases = map[string]bool{}
 
+// UnitCategory maps every unit alias to its dimension ("data" or "distance").
+// Used to reject cross-category conversions like "67 bits to miles".
+var UnitCategory = map[string]string{}
+
 // CalcEnv is the expression-evaluation environment: math functions, constants, units.
 var CalcEnv = map[string]interface{}{
 	"_": float64(0), // last result; seeded so expr.Compile always finds it
@@ -71,6 +75,7 @@ func init() {
 		for _, alias := range def.Aliases {
 			UnitRates[alias] = def.Rate
 			CalcEnv[alias] = def.Rate
+			UnitCategory[alias] = "distance"
 		}
 	}
 	for _, def := range dataUnits {
@@ -78,6 +83,7 @@ func init() {
 			UnitRates[alias] = def.Rate
 			CalcEnv[alias] = def.Rate
 			SizeUnitAliases[alias] = true
+			UnitCategory[alias] = "data"
 		}
 	}
 
