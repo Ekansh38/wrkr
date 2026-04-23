@@ -247,7 +247,7 @@ func Run() {
 				candidates = append([]string{
 					"help", "mode", "type", "setting", "vars", "del", "debug",
 					"exit", "quit", "clear", ":e", ":q",
-				}, engine.GetValidTokens()...)
+				}, engine.GetCompletionTokens()...)
 			} else {
 				cmd := fields[0]
 				switch cmd {
