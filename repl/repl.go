@@ -3,6 +3,7 @@ package repl
 import (
 	"fmt"
 	"io"
+	"sort"
 	"strings"
 
 	"github.com/atotto/clipboard"
@@ -104,7 +105,8 @@ func printHelp(topic string) {
 		fmt.Println("  List:     vars")
 		fmt.Println("  Delete:   del block")
 		fmt.Println()
-		fmt.Println("  Variables persist for the life of the process.")
+		fmt.Println("  Variables are saved to ~/.wrkr_vars.json and offered for reload")
+		fmt.Println("  the next time you start wrkr.")
 		fmt.Println("  You cannot use a mode name (hex, bin, dec, ...) as a variable name.")
 	case "all":
 		printHelp("math")
@@ -129,9 +131,69 @@ func Run() {
 
 	line := liner.NewLiner()
 	defer line.Close()
-	line.SetCtrlCAborts(true) // returns ErrPromptAborted instead of sending SIGINT
+	line.SetCtrlCAborts(true)
+
+	// Tab completion: match the last partial token against all known names.
+	line.SetCompleter(func(input string) []string {
+		lastBoundary := strings.LastIndexAny(input, " \t(,+-*/^%")
+		prefix := input
+		before := ""
+		if lastBoundary >= 0 {
+			before = input[:lastBoundary+1]
+			prefix = input[lastBoundary+1:]
+		}
+		if prefix == "" {
+			return nil
+		}
+		lp := strings.ToLower(prefix)
+		tokens := engine.GetValidTokens()
+		var out []string
+		for _, tok := range tokens {
+			if strings.HasPrefix(strings.ToLower(tok), lp) && strings.ToLower(tok) != lp {
+				out = append(out, before+tok)
+			}
+		}
+		sort.Strings(out)
+		return out
+	})
 
 	fmt.Println("wrkr — type 'help all' for reference, 'exit' to quit")
+
+	// ── Saved variable prompt ─────────────────────────────────────────────────
+	if saved, _ := engine.ReadSavedVars(); saved != nil {
+		fmt.Println()
+		fmt.Printf("  %d saved variable(s):\n", len(saved.Vars))
+
+		// Print in sorted order for readability.
+		keys := make([]string, 0, len(saved.Vars))
+		for k := range saved.Vars {
+			keys = append(keys, k)
+		}
+		sort.Strings(keys)
+		for _, k := range keys {
+			fmt.Printf("    %s  =  %s\n",
+				styleVarName(fmt.Sprintf("%-12s", k)),
+				boldWhite(engine.FormatDecimal(saved.Vars[k])),
+			)
+		}
+		fmt.Println()
+		fmt.Println("  [L] Load   [S] Skip (keep saved)   [D] Delete and start fresh")
+		fmt.Println()
+
+		choice, _ := line.Prompt("> ")
+		switch strings.ToLower(strings.TrimSpace(choice)) {
+		case "l", "load":
+			engine.ApplySavedVars(saved.Vars)
+			validTokens = engine.GetValidTokens()
+			fmt.Printf("  loaded %d variable(s)\n", len(saved.Vars))
+		case "d", "delete":
+			engine.DeletePersistedVars()
+			fmt.Println("  saved variables deleted")
+		default:
+			fmt.Println("  skipped (file kept)")
+		}
+		fmt.Println()
+	}
 
 	for {
 		// Mode tag on its own line so liner's \r redraws never overwrite it.
@@ -176,16 +238,68 @@ func Run() {
 			continue
 		}
 
+		// Debug: show every pipeline transformation step for an expression.
+		if strings.HasPrefix(lowerInput, "debug ") {
+			debugExpr := strings.TrimSpace(rawInput[6:])
+			s0 := debugExpr
+			s1 := engine.FixBaseTypos(s0)
+			s2 := engine.FixNakedBases(s1)
+			s3 := strings.ReplaceAll(s2, " into ", " to ")
+			s3 = strings.ReplaceAll(s3, " in to ", " to ")
+			s4 := engine.ProcessConversions(s3)
+			s5 := engine.ProcessFormatting(s4)
+			s6 := engine.FixImplicitMultiplication(s5)
+			s7 := engine.TranslateBases(s6)
+
+			steps := []struct{ label, val string }{
+				{"input   ", s0},
+				{"typos   ", s1},
+				{"bases   ", s2},
+				{"keywords", s3},
+				{"convert ", s4},
+				{"format  ", s5},
+				{"multiply", s6},
+				{"ast     ", s7},
+			}
+
+			fmt.Println()
+			prev := ""
+			for _, step := range steps {
+				changed := step.val != prev && prev != ""
+				arrow := "  "
+				if changed {
+					arrow = dimGray("→ ")
+				}
+				fmt.Printf("  %s  %s%s\n", dimGray(step.label), arrow, boldWhite(step.val))
+				prev = step.val
+			}
+
+			// Also evaluate and show the result.
+			env := engine.GetMergedEnv()
+			if prog, err := expr.Compile(s7, expr.Env(env)); err == nil {
+				if res, err := expr.Run(prog, env); err == nil {
+					fmt.Printf("\n  %s  %s\n", dimGray("result  "), colorizeResult(fmt.Sprintf("%v", res)))
+				}
+			}
+			fmt.Println()
+			continue
+		}
+
 		// List all user-defined variables.
 		if lowerInput == "vars" {
 			if len(engine.UserVars) == 0 {
 				fmt.Println("No variables defined.  Try: block = 4096")
 			} else {
 				fmt.Println("User-defined variables:")
-				for k, v := range engine.UserVars {
+				keys := make([]string, 0, len(engine.UserVars))
+				for k := range engine.UserVars {
+					keys = append(keys, k)
+				}
+				sort.Strings(keys)
+				for _, k := range keys {
 					fmt.Printf("  %s  =  %s\n",
 						styleVarName(fmt.Sprintf("%-12s", k)),
-						boldWhite(engine.FormatDecimal(v.(float64))),
+						boldWhite(engine.FormatDecimal(engine.UserVars[k].(float64))),
 					)
 				}
 			}
@@ -197,6 +311,7 @@ func Run() {
 			varName := strings.TrimSpace(rawInput[4:])
 			if engine.DeleteVar(varName) {
 				validTokens = engine.GetValidTokens()
+				engine.PersistVars()
 				fmt.Printf("deleted %s\n", styleVarName(varName))
 			} else {
 				fmt.Printf("%s  (not a user variable — use 'vars' to list)\n",
@@ -211,8 +326,6 @@ func Run() {
 			fmt.Printf("Current output mode: %s\n", colorMode(engine.CurrentMode))
 			continue
 		}
-		// Mode switching only via explicit "mode <name>" — never a bare word,
-		// so expressions like "0x123 hex to bin" are never intercepted.
 		if strings.HasPrefix(lowerInput, "mode ") {
 			modeCmd := strings.TrimSpace(strings.TrimPrefix(lowerInput, "mode "))
 			if newMode, ok := engine.ModeMap[modeCmd]; ok {
@@ -225,7 +338,6 @@ func Run() {
 		// ── Variable assignment: name = expression ────────────────────────────
 
 		if varName, exprStr, ok := engine.TryParseAssignment(rawInput); ok {
-			// Guard reserved keywords.
 			if _, reserved := engine.ModeMap[strings.ToLower(varName)]; reserved {
 				fmt.Println(styleError("Error: '" + varName + "' is a reserved mode keyword."))
 				continue
@@ -239,6 +351,7 @@ func Run() {
 			prog, compErr := expr.Compile(ast, expr.Env(env))
 			if compErr != nil {
 				fmt.Println(styleError("Error in assignment: " + compErr.Error()))
+				fmt.Println(dimGray("  ast: " + ast))
 				continue
 			}
 			res, runErr := expr.Run(prog, env)
@@ -250,6 +363,7 @@ func Run() {
 			val := toFloat64(res)
 			engine.StoreVar(varName, val)
 			validTokens = engine.GetValidTokens()
+			engine.PersistVars()
 			fmt.Printf("%s  =  %s\n",
 				styleVarName(varName),
 				boldWhite(engine.FormatDecimal(val)),
@@ -299,6 +413,7 @@ func Run() {
 		program, compErr := expr.Compile(processedInput, expr.Env(env))
 		if compErr != nil {
 			fmt.Println(styleError("Error: Could not parse expression."))
+			fmt.Println(dimGray("  ast: " + processedInput))
 			continue
 		}
 		result, runErr := expr.Run(program, env)
