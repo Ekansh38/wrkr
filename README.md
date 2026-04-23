@@ -1,6 +1,6 @@
 # wrkr
 
-> README and code are vibe-coded. Built for personal use. No guarantees. Use at your own risk.
+> README and code are AI generated. Built for personal use. No guarantees. Use at your own risk.
 
 A CLI calculator built for engineers who are tired of reaching for Python or a spreadsheet to do basic math while working. It understands units, remembers variables between expressions, and copies the right thing to your clipboard automatically.
 
@@ -27,12 +27,13 @@ I work on filesystems and OS stuff. I constantly need to know how many blocks fi
 
 Every input goes through a preprocessing pipeline before it hits the evaluator:
 
-1. Typo fixes (0b, 0x, 0o prefix normalization)
-2. Natural language base notation ("101 bin" becomes 0b101)
-3. Unit conversion expansion ("50 mi to km" becomes the actual math)
-4. Implicit multiplication ("5 mb" becomes "(5 * 1048576)")
-5. Base literal translation (0xFF becomes 255.0 so the evaluator can handle it)
-6. AST evaluation via expr-lang/expr (proper BODMAS, no regex math)
+1. Typo fixes (`0b`, `0x`, `0o` prefix normalization)
+2. Natural language base notation (`FF hex` becomes `0xFF`)
+3. Base conversion detection (`0x123 hex to bin` becomes `bin(0x123)`)
+4. Unit conversion expansion (`50 mi to km` becomes the actual math)
+5. Implicit multiplication (`5 mb` becomes `(5 * 1048576)`)
+6. Base literal translation (`0xFF` becomes `255.0` so the evaluator can handle it)
+7. AST evaluation via expr-lang/expr (proper BODMAS, no regex math)
 
 The pipeline runs on every input. The evaluator gets clean float64 expressions every time.
 
@@ -42,20 +43,21 @@ Units are stored as multipliers relative to a baseline (bytes for data, meters f
 
 ## Features
 
-**Units**
+### Units
 
-Data: b, bit, kb, mb, gb, tb
-Distance: m, km, cm, mm, mi, ft, in
+Write a number next to a unit name and they multiply automatically.
 
-Write numbers next to units and they multiply automatically.
+Data: `b`, `bit`/`bits`, `kb`, `mb`, `gb`, `tb`
+Distance: `m`, `km`, `cm`, `mm`, `mi`, `ft`, `in`
 
 ```
 5 mb
 (512 * kb) + (256 * kb)
 2 * tb / (4 * kb)
+hypot(3, 4)
 ```
 
-**Unit conversions**
+### Unit conversions
 
 ```
 50 mi to km
@@ -65,46 +67,78 @@ Write numbers next to units and they multiply automatically.
 30 cm to in
 ```
 
-**Output modes**
+The result is always shown with the target unit label and bypasses your current output mode — so `1 gb to mb` shows `1024 MB` even if you're in hex mode.
 
-Switch with `mode <name>`. Only the explicit `mode` prefix switches modes — bare words like `hex` or `bits` evaluate as expressions.
+### Base literals (input)
 
-- dec: raw number with a Smart Hint bracket when a size unit is involved
-- size: human-readable auto-scaling (1 GB, 512 MB)
-- bytes: raw number with B label
-- bits: converts result to bits automatically
-- hex: 0xFF format
-- bin: 0b11111111 format
-- oct: 0o377 format
+Three ways to write a number in a non-decimal base:
 
-The terminal output and clipboard output are different by design. Size mode shows "1 GB" on screen but copies "1" to clipboard. Dec mode shows "1048576 [1 MB]" but copies "1048576". You paste what you need.
+| Style | Example | Means |
+|-------|---------|-------|
+| Prefix | `0xFF`, `0b1010`, `0o17` | standard notation |
+| Natural language | `FF hex`, `101 bin`, `17 octal` | suffix names the base the digits are in |
+| Typo shorthand | `\xFF`, `\b1010`, `\o17` | backslash works as `0` |
 
-**User variables**
+### Base conversions (output)
+
+Three ways to convert a number to a different base — pick whichever reads most naturally:
+
+| Style | Example | Result |
+|-------|---------|--------|
+| Function call | `hex(255)` | `0xFF` |
+| `to` keyword | `255 to bin` | `0b11111111` |
+| Annotated source | `0x123 hex to bin` | `0b100100011` |
+
+The annotated source form (`0x123 hex to bin`) is useful when you already have a prefixed literal and want to reformat it. The middle word tells the calculator what base you're coming from; `to X` says where to go. All three forms produce the same result.
+
+```
+hex(255)           →  0xFF
+bin(255)           →  0b11111111
+octal(255)         →  0o377
+dec(0xFF)          →  255
+255 to hex         →  0xFF
+0xFF to bin        →  0b11111111
+0x123 hex to bin   →  0b100100011
+0b1010 bin to hex  →  0xA
+```
+
+### Output modes
+
+Switch with `mode <name>`. Only the explicit `mode` prefix switches modes — bare words like `hex` or `bin` evaluate as expressions, not mode switches.
+
+| mode | terminal | clipboard |
+|------|----------|-----------|
+| `dec` | `1048576  [1 MB]` | `1048576` |
+| `size` | `1 MB` | `1` |
+| `bytes` | `1048576 B` | `1048576` |
+| `bits` | `8388608 bits` | `8388608` |
+| `hex` | `0x100000  [Hex]` | `0x100000` |
+| `bin` | `0b100000000000000000000  [Bin]` | `0b100000000000000000000` |
+| `oct` | `0o4000000  [Oct]` | `0o4000000` |
+
+The **Smart Hint** (dec mode) adds the `[1 MB]` bracket automatically when your expression involves a data size unit. If units cancel each other out (e.g. `(256 * mb) / (4 * gb) * 1000` = 62.5 — units cancelled, result is not bytes) the hint stays silent to avoid misleading you.
+
+### User variables
 
 Variables persist for the life of the process.
 
 ```
 block = 4096
+page  = 4 * kb
 journal = 128 * mb
-journal / block
-vars            list all variables
-del block       remove a variable
+
+journal / block       use them in expressions
+vars                  list all variables
+del block             remove a variable
 ```
 
-**Math functions**
+### Math functions
 
+```
 sin, cos, tan, hypot, sqrt, abs, log, log2, log10, pow, round, floor, ceil, pi
-
-**Base arithmetic**
-
-```
-0xFF + 1
-0b1010 * 2
-0xDEAD
-1010 bin
 ```
 
-**Autocorrect**
+### Autocorrect
 
 If you mistype a unit or function name, it finds the closest match via Levenshtein distance. Before asking "did you mean X?", it silently compiles the suggested fix. If the fix produces garbage math, it says nothing.
 
@@ -114,16 +148,14 @@ If you mistype a unit or function name, it finds the closest match via Levenshte
 
 Requires Go 1.21+. Get it at https://go.dev/dl/
 
-**Option 1: go install (recommended for Go users)**
-
-This is the idiomatic Go way. It compiles the binary and drops it in `~/go/bin`, which Go adds to your PATH automatically.
+**Option 1: go install (recommended)**
 
 ```
 go install github.com/Ekansh38/wrkr@latest
 wrkr
 ```
 
-If `wrkr` is not found after that, add this to your `~/.zshrc` or `~/.bashrc`:
+If `wrkr` is not found, add Go's bin directory to your PATH:
 
 ```
 export PATH="$HOME/go/bin:$PATH"
@@ -131,61 +163,34 @@ export PATH="$HOME/go/bin:$PATH"
 
 Then reload: `source ~/.zshrc`
 
-**Option 2: build from source and install to /usr/local/bin**
+**Updating**
 
-This puts the binary somewhere already on your PATH system-wide. Any user on the machine can run it.
+`go install` does not auto-update. Re-run the same command to get the latest version:
+
+```
+go install github.com/Ekansh38/wrkr@latest
+```
+
+If the module proxy has a stale cached version, bypass it:
+
+```
+GOPROXY=direct go install github.com/Ekansh38/wrkr@latest
+```
+
+**Option 2: build from source**
 
 ```
 git clone git@github.com:Ekansh38/wrkr.git
 cd wrkr
 go build -o wrkr .
 sudo mv wrkr /usr/local/bin/wrkr
-wrkr
 ```
-
-**Option 3: build from source and install to ~/bin**
-
-No sudo required. Good if you do not have admin access or prefer keeping things in your home directory.
-
-```
-git clone git@github.com:Ekansh38/wrkr.git
-cd wrkr
-go build -o wrkr .
-mkdir -p ~/bin
-mv wrkr ~/bin/wrkr
-```
-
-Add this to your `~/.zshrc` or `~/.bashrc` if `~/bin` is not already on your PATH:
-
-```
-export PATH="$HOME/bin:$PATH"
-```
-
-Then reload: `source ~/.zshrc`
-
-**Do not use an alias for this.** Aliases work but break in scripts and non-interactive shells. Putting the binary on your PATH is the right approach.
-
----
-
-## Releases and distribution
-
-Go compiles to a single static binary with no runtime dependencies. That binary runs on any machine with the same OS and architecture. You do not need Go installed on the target machine to run the binary.
-
-To build for a different platform:
-
-```
-GOOS=linux GOARCH=amd64 go build -o wrkr-linux-amd64 .
-GOOS=darwin GOARCH=arm64 go build -o wrkr-macos-arm64 .
-GOOS=windows GOARCH=amd64 go build -o wrkr-windows-amd64.exe .
-```
-
-To create a GitHub release with pre-built binaries for all platforms, the standard Go tool is GoReleaser (goreleaser.com). You give it a config file and it cross-compiles, archives, checksums, and uploads everything to a GitHub release in one command. Most Go CLI projects use it. That is not set up here yet.
 
 ---
 
 ## Float precision
 
-All values are IEEE 754 float64, which gives ~15-16 significant digits. Output is displayed at 12 decimal places to suppress representation noise. Without this cap, `1 mi to km` would show `1.60934400000000005` instead of `1.609344`. If you need more than 12 decimal places of precision, this tool is the wrong choice.
+All values are IEEE 754 float64 (~15–16 significant digits). Output is capped at 12 decimal places to suppress representation noise. Without this, `1 mi to km` would show `1.60934400000000005` instead of `1.609344`. If you need more than 12 decimal places, this tool is the wrong choice.
 
 ---
 

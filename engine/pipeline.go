@@ -43,18 +43,54 @@ func FixBaseTypos(input string) string {
 }
 
 // FixNakedBases rewrites natural-language base notation:
-//   "101 bin"  → "0b101"
-//   "FF hex"   → "0xFF"
-//   "17 octal" → "0o17"
+//
+//	"101 bin"  → "0b101"
+//	"FF hex"   → "0xFF"
+//	"17 octal" → "0o17"
+//
+// Skips numbers that already carry a base prefix (0x/0b/0o) to avoid
+// double-prefixing (e.g. "0x123 hex" must stay "0x123 hex" so that
+// ProcessFormatting can later handle "0x123 hex to bin").
+// Also skips keyword "to" so that "255 to bin" is not mangled.
 func FixNakedBases(input string) string {
 	reBin := regexp.MustCompile(`(?i)\b([0-9a-zA-Z]+)\s+bin(ary)?\b`)
-	input = reBin.ReplaceAllString(input, "0b${1}")
+	input = reBin.ReplaceAllStringFunc(input, func(match string) string {
+		parts := reBin.FindStringSubmatch(match)
+		if len(parts) < 2 {
+			return match
+		}
+		n := strings.ToLower(parts[1])
+		if n == "to" || strings.HasPrefix(n, "0x") || strings.HasPrefix(n, "0b") || strings.HasPrefix(n, "0o") {
+			return match
+		}
+		return "0b" + parts[1]
+	})
 
 	reHex := regexp.MustCompile(`(?i)\b([0-9a-zA-Z]+)\s+hex(adecimal|idecimal)?\b`)
-	input = reHex.ReplaceAllString(input, "0x${1}")
+	input = reHex.ReplaceAllStringFunc(input, func(match string) string {
+		parts := reHex.FindStringSubmatch(match)
+		if len(parts) < 2 {
+			return match
+		}
+		n := strings.ToLower(parts[1])
+		if n == "to" || strings.HasPrefix(n, "0x") || strings.HasPrefix(n, "0b") || strings.HasPrefix(n, "0o") {
+			return match
+		}
+		return "0x" + parts[1]
+	})
 
 	reOct := regexp.MustCompile(`(?i)\b([0-9a-zA-Z]+)\s+oct(al)?\b`)
-	input = reOct.ReplaceAllString(input, "0o${1}")
+	input = reOct.ReplaceAllStringFunc(input, func(match string) string {
+		parts := reOct.FindStringSubmatch(match)
+		if len(parts) < 2 {
+			return match
+		}
+		n := strings.ToLower(parts[1])
+		if n == "to" || strings.HasPrefix(n, "0x") || strings.HasPrefix(n, "0b") || strings.HasPrefix(n, "0o") {
+			return match
+		}
+		return "0o" + parts[1]
+	})
 
 	return input
 }
@@ -77,17 +113,51 @@ func ProcessConversions(input string) string {
 	})
 }
 
-// ProcessFormatting handles "255 to hex" style inline base-conversion requests.
+// normalizeFormatFn maps format keywords to the function name in CalcEnv.
+func normalizeFormatFn(f string) string {
+	switch strings.ToLower(f) {
+	case "octal", "oct":
+		return "octal"
+	case "decimal":
+		return "dec"
+	default:
+		return strings.ToLower(f)
+	}
+}
+
+// ProcessFormatting handles inline base-conversion requests in three forms
+// (matched longest-first so the three-token form wins over the two-token form):
+//
+//	"0x123 hex to bin"  → bin(0x123)    number already in format1, reformat as format2
+//	"255 to hex"        → hex(255)      explicit "to" conversion
+//	"0xFF to dec"       → dec(0xFF)     same, with base literal
 func ProcessFormatting(input string) string {
 	numPat := `(?:0x[0-9a-fA-F]+|0[bB][01]+|0[oO][0-7]+|[0-9]*\.?[0-9]+(?:e[-+]?[0-9]+)?)`
-	re := regexp.MustCompile(`(?i)([-+]?` + numPat + `)\s+to\s+(hex|bin|octal|oct|dec|decimal)`)
-	return re.ReplaceAllStringFunc(input, func(match string) string {
-		parts := re.FindStringSubmatch(match)
-		if len(parts) == 3 {
-			return fmt.Sprintf("%s(%s)", strings.ToLower(parts[2]), parts[1])
+	fmtAlt := `(?:hex(?:adecimal|idecimal)?|bin(?:ary)?|oct(?:al)?|dec(?:imal)?)`
+
+	// Pattern 1 (three-token): "(number) (format1) to (format2)" → "format2(number)"
+	// This handles "0x123 hex to bin" where format1 annotates the source base.
+	re1 := regexp.MustCompile(`(?i)([-+]?` + numPat + `)\s+` + fmtAlt + `\s+to\s+(` + fmtAlt + `)`)
+	input = re1.ReplaceAllStringFunc(input, func(match string) string {
+		parts := re1.FindStringSubmatch(match)
+		// parts[1] = number, parts[2] = target format (last capture group)
+		if len(parts) >= 3 {
+			return fmt.Sprintf("%s(%s)", normalizeFormatFn(parts[len(parts)-1]), parts[1])
 		}
 		return match
 	})
+
+	// Pattern 2 (two-token): "(number) to (format)" → "format(number)"
+	re2 := regexp.MustCompile(`(?i)([-+]?` + numPat + `)\s+to\s+(` + fmtAlt + `)`)
+	input = re2.ReplaceAllStringFunc(input, func(match string) string {
+		parts := re2.FindStringSubmatch(match)
+		if len(parts) == 3 {
+			return fmt.Sprintf("%s(%s)", normalizeFormatFn(parts[2]), parts[1])
+		}
+		return match
+	})
+
+	return input
 }
 
 // FixImplicitMultiplication rewrites "5 mb" → "(5 * mb)".
