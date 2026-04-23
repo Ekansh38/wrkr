@@ -14,6 +14,48 @@ func varsFilePath() (string, error) {
 	return filepath.Join(home, ".wrkr_vars.json"), nil
 }
 
+func configFilePath() (string, error) {
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return "", err
+	}
+	return filepath.Join(home, ".wrkr_config.json"), nil
+}
+
+type wrkrConfig struct {
+	Autoload bool `json:"autoload"`
+}
+
+// ReadAutoload returns true if the user has chosen "always load" previously.
+func ReadAutoload() bool {
+	path, err := configFilePath()
+	if err != nil {
+		return false
+	}
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return false
+	}
+	var cfg wrkrConfig
+	if err := json.Unmarshal(data, &cfg); err != nil {
+		return false
+	}
+	return cfg.Autoload
+}
+
+// SetAutoload writes the autoload preference to ~/.wrkr_config.json.
+func SetAutoload(enabled bool) error {
+	path, err := configFilePath()
+	if err != nil {
+		return err
+	}
+	data, err := json.MarshalIndent(wrkrConfig{Autoload: enabled}, "", "  ")
+	if err != nil {
+		return err
+	}
+	return os.WriteFile(path, data, 0644)
+}
+
 // SavedVarsFile holds the contents of the on-disk vars file plus its path.
 type SavedVarsFile struct {
 	Path string

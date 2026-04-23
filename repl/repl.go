@@ -161,38 +161,53 @@ func Run() {
 
 	// ── Saved variable prompt ─────────────────────────────────────────────────
 	if saved, _ := engine.ReadSavedVars(); saved != nil {
-		fmt.Println()
-		fmt.Printf("  %d saved variable(s):\n", len(saved.Vars))
-
-		// Print in sorted order for readability.
+		// Print saved vars in sorted order.
 		keys := make([]string, 0, len(saved.Vars))
 		for k := range saved.Vars {
 			keys = append(keys, k)
 		}
 		sort.Strings(keys)
-		for _, k := range keys {
-			fmt.Printf("    %s  =  %s\n",
-				styleVarName(fmt.Sprintf("%-12s", k)),
-				boldWhite(engine.FormatDecimal(saved.Vars[k])),
-			)
-		}
-		fmt.Println()
-		fmt.Println("  [L] Load   [S] Skip (keep saved)   [D] Delete and start fresh")
-		fmt.Println()
 
-		choice, _ := line.Prompt("> ")
-		switch strings.ToLower(strings.TrimSpace(choice)) {
-		case "l", "load":
+		if engine.ReadAutoload() {
+			// User previously chose "always load" — load silently.
 			engine.ApplySavedVars(saved.Vars)
 			validTokens = engine.GetValidTokens()
-			fmt.Printf("  loaded %d variable(s)\n", len(saved.Vars))
-		case "d", "delete":
-			engine.DeletePersistedVars()
-			fmt.Println("  saved variables deleted")
-		default:
-			fmt.Println("  skipped (file kept)")
+			fmt.Println()
+			fmt.Printf("  loaded %d variable(s)  %s\n",
+				len(saved.Vars), dimGray("(type 'vars' to list — 'del <name>' to remove)"))
+			fmt.Println()
+		} else {
+			fmt.Println()
+			fmt.Printf("  %d saved variable(s):\n", len(saved.Vars))
+			for _, k := range keys {
+				fmt.Printf("    %s  =  %s\n",
+					styleVarName(fmt.Sprintf("%-12s", k)),
+					boldWhite(engine.FormatDecimal(saved.Vars[k])),
+				)
+			}
+			fmt.Println()
+			fmt.Println("  [L] Load   [A] Always load   [S] Skip (keep saved)   [D] Delete and start fresh")
+			fmt.Println()
+
+			choice, _ := line.Prompt("> ")
+			switch strings.ToLower(strings.TrimSpace(choice)) {
+			case "a", "always":
+				engine.ApplySavedVars(saved.Vars)
+				validTokens = engine.GetValidTokens()
+				engine.SetAutoload(true)
+				fmt.Printf("  loaded %d variable(s) — will autoload from now on\n", len(saved.Vars))
+			case "l", "load":
+				engine.ApplySavedVars(saved.Vars)
+				validTokens = engine.GetValidTokens()
+				fmt.Printf("  loaded %d variable(s)\n", len(saved.Vars))
+			case "d", "delete":
+				engine.DeletePersistedVars()
+				fmt.Println("  saved variables deleted")
+			default:
+				fmt.Println("  skipped (file kept)")
+			}
+			fmt.Println()
 		}
-		fmt.Println()
 	}
 
 	for {
