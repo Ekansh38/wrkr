@@ -9,7 +9,7 @@ import (
 	"math"
 	"testing"
 
-	"wrkr/engine"
+	"github.com/Ekansh38/wrkr/engine"
 )
 
 func TestGame_Projectile_Range(t *testing.T) {

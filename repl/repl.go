@@ -9,7 +9,7 @@ import (
 	"github.com/expr-lang/expr"
 	"github.com/peterh/liner"
 
-	"wrkr/engine"
+	"github.com/Ekansh38/wrkr/engine"
 )
 
 func printHelp(topic string) {

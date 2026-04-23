@@ -1,4 +1,4 @@
-module wrkr
+module github.com/Ekansh38/wrkr
 
 go 1.25.0
 

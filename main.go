@@ -1,6 +1,6 @@
 package main
 
-import "wrkr/repl"
+import "github.com/Ekansh38/wrkr/repl"
 
 func main() {
 	repl.Run()

@@ -7,7 +7,7 @@ import (
 
 	"github.com/expr-lang/expr"
 
-	"wrkr/engine"
+	"github.com/Ekansh38/wrkr/engine"
 )
 
 // eval runs the full preprocessing pipeline on input and returns the float64 result.

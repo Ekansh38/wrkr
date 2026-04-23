@@ -7,7 +7,7 @@ import (
 	"math"
 	"testing"
 
-	"wrkr/engine"
+	"github.com/Ekansh38/wrkr/engine"
 )
 
 // ── Unit conversions ─────────────────────────────────────────────────────────
