@@ -238,6 +238,7 @@ func Run() {
 	}
 
 	var scriptQueue []string
+	var lastEditorContent string
 
 	for {
 		var rawInput string
@@ -245,6 +246,7 @@ func Run() {
 		if len(scriptQueue) > 0 {
 			rawInput = scriptQueue[0]
 			scriptQueue = scriptQueue[1:]
+			line.AppendHistory(rawInput)
 			fmt.Printf("\n%s %s\n", dimGray(">"), rawInput)
 		} else {
 			fmt.Printf("\n%s\n", colorMode("["+engine.CurrentMode+"]"))
@@ -298,7 +300,7 @@ func Run() {
 			line.WriteHistory(&histBuf)
 			line.Close()
 
-			editorContent, editorErr := openInEditor("")
+			editorContent, editorErr := openInEditor(lastEditorContent)
 
 			setupLiner()
 			line.ReadHistory(&histBuf)
@@ -317,6 +319,7 @@ func Run() {
 			if len(editorLines) == 0 {
 				continue
 			}
+			lastEditorContent = editorContent
 
 			// Queue all lines. The first one falls through into this iteration;
 			// the rest are prepended to scriptQueue for subsequent iterations.
