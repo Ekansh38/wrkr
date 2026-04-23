@@ -599,3 +599,44 @@ func TestPipeline_UnderscoreToTypeCast(t *testing.T) {
 	got := eval(t, "_ to s8")
 	near(t, got, -10, "_ to s8")
 }
+
+// ── Format functions respect type mode ───────────────────────────────────────
+
+// "to dec" in s16 mode must apply s16 sign interpretation, not bypass it.
+// Regression: format functions previously returned the raw float64 string,
+// skipping ApplyTypeMode entirely.
+func TestFormatFn_Dec_RespectsTypeMode_S16(t *testing.T) {
+	prev := engine.CurrentTypeMode
+	engine.CurrentTypeMode = "s16"
+	defer func() { engine.CurrentTypeMode = prev }()
+
+	// 0b1000_0000_0100_0010 = 32834 decimal.
+	// In s16: 32834 > 32767, so CastSigned(32834, 16) = 32834 - 65536 = -32702.
+	got := evalStr(t, "0b1000000001000010 to dec")
+	if got != "-32702" {
+		t.Errorf("to dec in s16 mode: got %q, want -32702", got)
+	}
+}
+
+func TestFormatFn_Dec_AutoMode_Unchanged(t *testing.T) {
+	prev := engine.CurrentTypeMode
+	engine.CurrentTypeMode = "auto"
+	defer func() { engine.CurrentTypeMode = prev }()
+
+	got := evalStr(t, "0b1000000001000010 to dec")
+	if got != "32834" {
+		t.Errorf("to dec in auto mode: got %q, want 32834", got)
+	}
+}
+
+func TestFormatFn_Hex_RespectsTypeMode_S8(t *testing.T) {
+	prev := engine.CurrentTypeMode
+	engine.CurrentTypeMode = "s8"
+	defer func() { engine.CurrentTypeMode = prev }()
+
+	// 246 as s8 = -10; hex(-10) = "-0xA"
+	got := evalStr(t, "hex(246)")
+	if got != "-0xA" {
+		t.Errorf("hex(246) in s8 mode: got %q, want -0xA", got)
+	}
+}

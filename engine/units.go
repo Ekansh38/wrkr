@@ -43,13 +43,16 @@ var CalcEnv = map[string]interface{}{
 	"ceil":  math.Ceil,
 	"min":   math.Min,
 	"max":   math.Max,
-	// Base-conversion helpers (return formatted strings)
-	"hex":     func(f float64) string { return FormatHex(f) },
-	"bin":     func(f float64) string { return FormatBin(f) },
-	"octal":   func(f float64) string { return FormatOct(f) },
-	"oct":     func(f float64) string { return FormatOct(f) },
-	"dec":     func(f float64) string { return FormatDecimal(f) },
-	"decimal": func(f float64) string { return FormatDecimal(f) },
+	// Base-conversion helpers (return formatted strings).
+	// ApplyTypeMode is called first so that "to dec" / "hex(...)" respect the
+	// active type mode (s16, u8, …) exactly the same way a plain numeric result does.
+	// Width-specific variants (bin32, hex64, …) carry their own semantics and are exempt.
+	"hex":     func(f float64) string { v, _ := ApplyTypeMode(f); return FormatHex(v) },
+	"bin":     func(f float64) string { v, _ := ApplyTypeMode(f); return FormatBin(v) },
+	"octal":   func(f float64) string { v, _ := ApplyTypeMode(f); return FormatOct(v) },
+	"oct":     func(f float64) string { v, _ := ApplyTypeMode(f); return FormatOct(v) },
+	"dec":     func(f float64) string { v, _ := ApplyTypeMode(f); return FormatDecimal(v) },
+	"decimal": func(f float64) string { v, _ := ApplyTypeMode(f); return FormatDecimal(v) },
 }
 
 func init() {
