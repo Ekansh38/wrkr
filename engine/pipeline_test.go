@@ -319,3 +319,159 @@ func TestFS_TLBCoverage(t *testing.T) {
 func TestFS_SectorsPerBlock(t *testing.T) {
 	near(t, eval(t, "(4 * kb) / 512"), 8, "sectors per 4 KB block")
 }
+
+// ── StripNumericSeparators ───────────────────────────────────────────────────
+
+func TestStripSep_Decimal(t *testing.T) {
+	got := engine.StripNumericSeparators("1_000_000")
+	if got != "1000000" {
+		t.Errorf("StripNumericSeparators(1_000_000) = %q, want 1000000", got)
+	}
+}
+
+func TestStripSep_Binary(t *testing.T) {
+	got := engine.StripNumericSeparators("0b1011_1011")
+	if got != "0b10111011" {
+		t.Errorf("StripNumericSeparators(0b1011_1011) = %q, want 0b10111011", got)
+	}
+}
+
+func TestStripSep_Hex(t *testing.T) {
+	got := engine.StripNumericSeparators("0xDEAD_BEEF")
+	if got != "0xDEADBEEF" {
+		t.Errorf("StripNumericSeparators(0xDEAD_BEEF) = %q, want 0xDEADBEEF", got)
+	}
+}
+
+func TestStripSep_PreservesIdentifier(t *testing.T) {
+	// dead_beef is a variable name, not a numeric literal — must not be touched.
+	got := engine.StripNumericSeparators("dead_beef")
+	if got != "dead_beef" {
+		t.Errorf("StripNumericSeparators(dead_beef) = %q, want dead_beef unchanged", got)
+	}
+}
+
+func TestStripSep_MixedExpression(t *testing.T) {
+	got := engine.StripNumericSeparators("1_000_000 * mb + dead_beef")
+	want := "1000000 * mb + dead_beef"
+	if got != want {
+		t.Errorf("StripNumericSeparators expression = %q, want %q", got, want)
+	}
+}
+
+func TestStripSep_EvalDecimal(t *testing.T) {
+	near(t, eval(t, "1_000_000"), 1000000, "1_000_000 evaluates to 1000000")
+}
+
+func TestStripSep_EvalBinary(t *testing.T) {
+	near(t, eval(t, "0b1011_1011"), 0b10111011, "0b1011_1011 evaluates correctly")
+}
+
+func TestStripSep_EvalHex(t *testing.T) {
+	near(t, eval(t, "0xDEAD_BEEF"), 0xDEADBEEF, "0xDEAD_BEEF evaluates correctly")
+}
+
+// ── Grouping display transforms ───────────────────────────────────────────────
+
+func TestGrouping_DecimalLarge(t *testing.T) {
+	prev := engine.GroupingDisplay
+	engine.GroupingDisplay = true
+	defer func() { engine.GroupingDisplay = prev }()
+
+	// 1048576 in dec mode with grouping → 1_048_576
+	prevMode := engine.CurrentMode
+	engine.CurrentMode = "dec"
+	defer func() { engine.CurrentMode = prevMode }()
+
+	s := engine.FormatTerminal(1048576, 0, "")
+	if s != "1_048_576" {
+		t.Errorf("FormatTerminal(1048576) with grouping = %q, want 1_048_576", s)
+	}
+}
+
+func TestGrouping_DecimalSmall_NoGroup(t *testing.T) {
+	prev := engine.GroupingDisplay
+	engine.GroupingDisplay = true
+	defer func() { engine.GroupingDisplay = prev }()
+
+	prevMode := engine.CurrentMode
+	engine.CurrentMode = "dec"
+	defer func() { engine.CurrentMode = prevMode }()
+
+	s := engine.FormatTerminal(999, 0, "")
+	if s != "999" {
+		t.Errorf("FormatTerminal(999) with grouping = %q, want 999 (no grouping)", s)
+	}
+}
+
+func TestGrouping_BinaryByNibbles(t *testing.T) {
+	prev := engine.GroupingDisplay
+	engine.GroupingDisplay = true
+	defer func() { engine.GroupingDisplay = prev }()
+
+	prevMode := engine.CurrentMode
+	engine.CurrentMode = "bin"
+	defer func() { engine.CurrentMode = prevMode }()
+
+	// 255 = 0b11111111 → 0b1111_1111
+	s := engine.FormatTerminal(255, 0, "")
+	if s != "0b1111_1111  [Bin]" {
+		t.Errorf("FormatTerminal(255) bin with grouping = %q, want 0b1111_1111  [Bin]", s)
+	}
+}
+
+func TestGrouping_HexByNibbles(t *testing.T) {
+	prev := engine.GroupingDisplay
+	engine.GroupingDisplay = true
+	defer func() { engine.GroupingDisplay = prev }()
+
+	prevMode := engine.CurrentMode
+	engine.CurrentMode = "hex"
+	defer func() { engine.CurrentMode = prevMode }()
+
+	// 0xDEADBEEF = 3735928559 → 0xDEAD_BEEF
+	s := engine.FormatTerminal(0xDEADBEEF, 0, "")
+	if s != "0xDEAD_BEEF  [Hex]" {
+		t.Errorf("FormatTerminal(0xDEADBEEF) hex with grouping = %q, want 0xDEAD_BEEF  [Hex]", s)
+	}
+}
+
+func TestPrefixDisplay_Off(t *testing.T) {
+	prevP := engine.PrefixDisplay
+	prevG := engine.GroupingDisplay
+	engine.PrefixDisplay = false
+	engine.GroupingDisplay = false
+	defer func() {
+		engine.PrefixDisplay = prevP
+		engine.GroupingDisplay = prevG
+	}()
+
+	prevMode := engine.CurrentMode
+	engine.CurrentMode = "hex"
+	defer func() { engine.CurrentMode = prevMode }()
+
+	s := engine.FormatTerminal(255, 0, "")
+	if s != "FF  [Hex]" {
+		t.Errorf("FormatTerminal(255) hex no prefix = %q, want FF  [Hex]", s)
+	}
+}
+
+func TestClipboard_NoGrouping_NoPrefix(t *testing.T) {
+	prevG := engine.GroupingClipboard
+	prevP := engine.PrefixClipboard
+	engine.GroupingClipboard = false
+	engine.PrefixClipboard = false
+	defer func() {
+		engine.GroupingClipboard = prevG
+		engine.PrefixClipboard = prevP
+	}()
+
+	prevMode := engine.CurrentMode
+	engine.CurrentMode = "hex"
+	defer func() { engine.CurrentMode = prevMode }()
+
+	s := engine.FormatClipboard(0xDEADBEEF)
+	if s != "DEADBEEF" {
+		t.Errorf("FormatClipboard hex raw = %q, want DEADBEEF", s)
+	}
+}

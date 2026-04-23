@@ -15,14 +15,15 @@ Filesystem/OS work means constant block count math, B-tree depth estimates, work
 Raw input goes through these stages before hitting the evaluator:
 
 ```
-1. prefix normalization   \xFF -> 0xFF, ob101 -> 0b101
-2. naked base notation    FF hex -> 0xFF, 101 bin -> 0b101
-3. base conversion        0x123 hex to bin -> bin(0x123)
-4. unit conversion        50 mi to km -> (50 * (1609.344 / 1000))
-5. implicit multiply      5 mb -> (5 * 1048576)
-6. bitwise rewrite        a & b -> band(a, b), ~x -> bnot(x)
-7. base translation       0xFF -> 255.000000
-8. AST eval               expr-lang/expr, proper operator precedence
+1. separator strip        1_000_000 -> 1000000, 0b1011_1011 -> 0b10111011
+2. prefix normalization   \xFF -> 0xFF, ob101 -> 0b101
+3. naked base notation    FF hex -> 0xFF, 101 bin -> 0b101
+4. base conversion        0x123 hex to bin -> bin(0x123)
+5. unit conversion        50 mi to km -> (50 * (1609.344 / 1000))
+6. implicit multiply      5 mb -> (5 * 1048576)
+7. bitwise rewrite        a & b -> band(a, b), ~x -> bnot(x)
+8. base translation       0xFF -> 255.000000
+9. AST eval               expr-lang/expr, proper operator precedence
 ```
 
 All values are float64 internally. Units are multipliers against a baseline (bytes for data, meters for distance).
@@ -62,6 +63,19 @@ Three equivalent ways to write a non-decimal literal:
 | prefix | `0xFF` `0b1010` `0o17` | standard |
 | natural | `FF hex` `101 bin` `17 octal` | suffix = base the digits are in |
 | typo | `\xFF` `\b1010` `\o17` | backslash = 0 |
+
+## Numeric separators
+
+Use `_` inside any numeric literal for readability. Stripped before evaluation.
+
+```
+1_000_000          -> 1000000
+0b1011_1011        -> 0b10111011  (187)
+0xDEAD_BEEF        -> 3735928559
+1_048_576 / 4_096  -> 256
+```
+
+Underscores in variable names (`dead_beef`, `block_size`) are never touched.
 
 ## Base conversion
 
@@ -243,11 +257,23 @@ Both `mode` and `type` are saved to `~/.wrkr_config.json` and restored on next l
 
 ## Settings
 
+`setting` alone shows a table of all current settings.
+
 ```
-setting clipboard on     copy results to clipboard (default)
-setting clipboard off    disable clipboard copy
-setting clipboard        query current value
+setting clipboard on|off          toggle clipboard copy (default: on)
+
+setting grouping on|off           _ separators in output + clipboard
+setting grouping display on|off   _ separators in terminal only
+setting grouping clipboard on|off _ separators in clipboard only
+
+setting prefix on|off             0x/0b/0o prefix in output + clipboard
+setting prefix display on|off     prefix in terminal only
+setting prefix clipboard on|off   prefix in clipboard only
 ```
+
+Defaults: grouping display **on**, grouping clipboard **off**, prefix display **on**, prefix clipboard **off** (raw hex/bin values without `0x`/`0b` on clipboard).
+
+With defaults, `0xFF` in hex mode shows `0xFF  [Hex]` on screen and copies `FF` to clipboard.
 
 ## Variables
 

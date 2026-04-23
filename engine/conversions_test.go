@@ -239,6 +239,11 @@ func TestFormat_SizeMode_NoExcessDecimals(t *testing.T) {
 
 func TestFormat_WithTargetUnit_Bits(t *testing.T) {
 	// 8388608 bits labelled as "bits" (result of 1 mb to bits)
+	// Disable grouping so the test doesn't depend on the global default.
+	prevG := engine.GroupingDisplay
+	engine.GroupingDisplay = false
+	defer func() { engine.GroupingDisplay = prevG }()
+
 	got := engine.FormatWithTargetUnit(8388608, "bits")
 	want := "8388608 bits"
 	if got != want {

@@ -150,8 +150,20 @@ func printHelp(topic string) {
 	case "settings", "setting", "config":
 		fmt.Println("settings")
 		fmt.Println()
-		fmt.Println("  setting clipboard on|off    toggle clipboard copy (default: on)")
-		fmt.Println("  setting clipboard           query current value")
+		fmt.Println("  setting                            show all settings")
+		fmt.Println()
+		fmt.Println("  setting clipboard on|off           toggle clipboard copy (default: on)")
+		fmt.Println()
+		fmt.Println("  setting grouping on|off            _ separators in output + clipboard")
+		fmt.Println("  setting grouping display on|off    _ separators in terminal only")
+		fmt.Println("  setting grouping clipboard on|off  _ separators in clipboard only")
+		fmt.Println()
+		fmt.Println("  setting prefix on|off              0x/0b/0o prefix in output + clipboard")
+		fmt.Println("  setting prefix display on|off      prefix in terminal only")
+		fmt.Println("  setting prefix clipboard on|off    prefix in clipboard only")
+		fmt.Println()
+		fmt.Println("  defaults: grouping display on, grouping clipboard off,")
+		fmt.Println("            prefix display on, prefix clipboard off (raw)")
 		fmt.Println()
 		fmt.Println("  settings are saved to ~/.wrkr_config.json")
 	case "all":
@@ -269,10 +281,24 @@ func Run() {
 					commandContext = true
 					switch numCompleted {
 					case 1:
-						candidates = []string{"clipboard"}
+						candidates = []string{"clipboard", "grouping", "prefix"}
 					case 2:
-						if len(fields) >= 2 && fields[1] == "clipboard" {
-							candidates = []string{"on", "off"}
+						if len(fields) >= 2 {
+							switch fields[1] {
+							case "clipboard":
+								candidates = []string{"on", "off"}
+							case "grouping", "prefix":
+								candidates = []string{"on", "off", "display", "clipboard"}
+							}
+						}
+					case 3:
+						if len(fields) >= 3 {
+							switch fields[1] {
+							case "grouping", "prefix":
+								if fields[2] == "display" || fields[2] == "clipboard" {
+									candidates = []string{"on", "off"}
+								}
+							}
 						}
 					}
 				case "help":
@@ -317,7 +343,7 @@ func Run() {
 	setupLiner()
 	defer func() { line.Close() }()
 
-	// Restore persisted settings (format mode, type mode, clipboard).
+	// Restore persisted settings (format mode, type mode, clipboard, grouping, prefix).
 	{
 		cfg := engine.ReadAppConfig()
 		if cfg.FormatMode != "" {
@@ -332,6 +358,18 @@ func Run() {
 		}
 		if cfg.Clipboard != nil {
 			engine.ClipboardEnabled = *cfg.Clipboard
+		}
+		if cfg.GroupingDisplay != nil {
+			engine.GroupingDisplay = *cfg.GroupingDisplay
+		}
+		if cfg.GroupingClipboard != nil {
+			engine.GroupingClipboard = *cfg.GroupingClipboard
+		}
+		if cfg.PrefixDisplay != nil {
+			engine.PrefixDisplay = *cfg.PrefixDisplay
+		}
+		if cfg.PrefixClipboard != nil {
+			engine.PrefixClipboard = *cfg.PrefixClipboard
 		}
 	}
 
@@ -494,28 +532,30 @@ func Run() {
 		if strings.HasPrefix(lowerInput, "debug ") {
 			debugExpr := strings.TrimSpace(rawInput[6:])
 			s0 := debugExpr
-			s1 := engine.FixBaseTypos(s0)
-			s2 := engine.FixNakedBases(s1)
-			s3 := strings.ReplaceAll(s2, " into ", " to ")
-			s3 = strings.ReplaceAll(s3, " in to ", " to ")
-			s4 := engine.ProcessConversions(s3)
-			s5 := engine.ProcessFormatting(s4)
-			s6 := engine.FixImplicitMultiplication(s5)
-			s7 := engine.RewriteBitwiseOps(s6)
-			s8 := engine.TranslateBases(s7)
-			s9 := engine.ExpandConstants(s7) // unit names -> numbers (pre-translate view)
+			s1 := engine.StripNumericSeparators(s0)
+			s2 := engine.FixBaseTypos(s1)
+			s3 := engine.FixNakedBases(s2)
+			s4 := strings.ReplaceAll(s3, " into ", " to ")
+			s4 = strings.ReplaceAll(s4, " in to ", " to ")
+			s5 := engine.ProcessConversions(s4)
+			s6 := engine.ProcessFormatting(s5)
+			s7 := engine.FixImplicitMultiplication(s6)
+			s8 := engine.RewriteBitwiseOps(s7)
+			s9 := engine.TranslateBases(s8)
+			s10 := engine.ExpandConstants(s8) // unit names -> numbers (pre-translate view)
 
 			steps := []struct{ label, val string }{
 				{"input   ", s0},
-				{"typos   ", s1},
-				{"bases   ", s2},
-				{"keywords", s3},
-				{"convert ", s4},
-				{"format  ", s5},
-				{"multiply", s6},
-				{"bitwise ", s7},
-				{"ast     ", s8},
-				{"expanded", s9},
+				{"sep     ", s1},
+				{"typos   ", s2},
+				{"bases   ", s3},
+				{"keywords", s4},
+				{"convert ", s5},
+				{"format  ", s6},
+				{"multiply", s7},
+				{"bitwise ", s8},
+				{"ast     ", s9},
+				{"expanded", s10},
 			}
 
 			fmt.Println()
@@ -533,7 +573,7 @@ func Run() {
 			}
 
 			env := engine.GetMergedEnv()
-			if prog, err := expr.Compile(s8, expr.Env(env)); err == nil {
+			if prog, err := expr.Compile(s9, expr.Env(env)); err == nil {
 				if res, err := expr.Run(prog, env); err == nil {
 					var resultStr string
 					switch v := res.(type) {
@@ -650,7 +690,20 @@ func Run() {
 		if lowerInput == "setting" || strings.HasPrefix(lowerInput, "setting ") {
 			parts := strings.Fields(rawInput)
 			if len(parts) < 2 {
-				printHelp("settings")
+				// Show a table of all current settings.
+				onOff := func(b bool) string {
+					if b {
+						return "on"
+					}
+					return "off"
+				}
+				fmt.Println()
+				fmt.Printf("  %-12s  %s\n", "clipboard", onOff(engine.ClipboardEnabled))
+				fmt.Printf("  %-12s  display %-3s   clipboard %s\n", "grouping",
+					onOff(engine.GroupingDisplay), onOff(engine.GroupingClipboard))
+				fmt.Printf("  %-12s  display %-3s   clipboard %s\n", "prefix",
+					onOff(engine.PrefixDisplay), onOff(engine.PrefixClipboard))
+				fmt.Println()
 				continue
 			}
 			switch strings.ToLower(parts[1]) {
@@ -681,8 +734,160 @@ func Run() {
 						fmt.Println(styleError("usage: setting clipboard on|off"))
 					}
 				}
+			case "grouping":
+				applyGrouping := func(display, clip *bool) {
+					cfg := engine.ReadAppConfig()
+					if display != nil {
+						engine.GroupingDisplay = *display
+						cfg.GroupingDisplay = display
+					}
+					if clip != nil {
+						engine.GroupingClipboard = *clip
+						cfg.GroupingClipboard = clip
+					}
+					engine.SaveAppConfig(cfg)
+				}
+				if len(parts) == 2 {
+					fmt.Printf("grouping: display %s   clipboard %s\n",
+						func() string {
+							if engine.GroupingDisplay {
+								return "on"
+							}
+							return "off"
+						}(),
+						func() string {
+							if engine.GroupingClipboard {
+								return "on"
+							}
+							return "off"
+						}())
+				} else {
+					sub := strings.ToLower(parts[2])
+					switch sub {
+					case "on":
+						t := true
+						applyGrouping(&t, &t)
+						fmt.Println("grouping: on")
+					case "off":
+						f := false
+						applyGrouping(&f, &f)
+						fmt.Println("grouping: off")
+					case "display":
+						if len(parts) < 4 {
+							fmt.Println(styleError("usage: setting grouping display on|off"))
+						} else {
+							switch strings.ToLower(parts[3]) {
+							case "on":
+								t := true
+								applyGrouping(&t, nil)
+								fmt.Println("grouping display: on")
+							case "off":
+								f := false
+								applyGrouping(&f, nil)
+								fmt.Println("grouping display: off")
+							default:
+								fmt.Println(styleError("usage: setting grouping display on|off"))
+							}
+						}
+					case "clipboard":
+						if len(parts) < 4 {
+							fmt.Println(styleError("usage: setting grouping clipboard on|off"))
+						} else {
+							switch strings.ToLower(parts[3]) {
+							case "on":
+								t := true
+								applyGrouping(nil, &t)
+								fmt.Println("grouping clipboard: on")
+							case "off":
+								f := false
+								applyGrouping(nil, &f)
+								fmt.Println("grouping clipboard: off")
+							default:
+								fmt.Println(styleError("usage: setting grouping clipboard on|off"))
+							}
+						}
+					default:
+						fmt.Println(styleError("usage: setting grouping [on|off|display on|off|clipboard on|off]"))
+					}
+				}
+			case "prefix":
+				applyPrefix := func(display, clip *bool) {
+					cfg := engine.ReadAppConfig()
+					if display != nil {
+						engine.PrefixDisplay = *display
+						cfg.PrefixDisplay = display
+					}
+					if clip != nil {
+						engine.PrefixClipboard = *clip
+						cfg.PrefixClipboard = clip
+					}
+					engine.SaveAppConfig(cfg)
+				}
+				if len(parts) == 2 {
+					fmt.Printf("prefix: display %s   clipboard %s\n",
+						func() string {
+							if engine.PrefixDisplay {
+								return "on"
+							}
+							return "off"
+						}(),
+						func() string {
+							if engine.PrefixClipboard {
+								return "on"
+							}
+							return "off"
+						}())
+				} else {
+					sub := strings.ToLower(parts[2])
+					switch sub {
+					case "on":
+						t := true
+						applyPrefix(&t, &t)
+						fmt.Println("prefix: on")
+					case "off":
+						f := false
+						applyPrefix(&f, &f)
+						fmt.Println("prefix: off")
+					case "display":
+						if len(parts) < 4 {
+							fmt.Println(styleError("usage: setting prefix display on|off"))
+						} else {
+							switch strings.ToLower(parts[3]) {
+							case "on":
+								t := true
+								applyPrefix(&t, nil)
+								fmt.Println("prefix display: on")
+							case "off":
+								f := false
+								applyPrefix(&f, nil)
+								fmt.Println("prefix display: off")
+							default:
+								fmt.Println(styleError("usage: setting prefix display on|off"))
+							}
+						}
+					case "clipboard":
+						if len(parts) < 4 {
+							fmt.Println(styleError("usage: setting prefix clipboard on|off"))
+						} else {
+							switch strings.ToLower(parts[3]) {
+							case "on":
+								t := true
+								applyPrefix(nil, &t)
+								fmt.Println("prefix clipboard: on")
+							case "off":
+								f := false
+								applyPrefix(nil, &f)
+								fmt.Println("prefix clipboard: off")
+							default:
+								fmt.Println(styleError("usage: setting prefix clipboard on|off"))
+							}
+						}
+					default:
+						fmt.Println(styleError("usage: setting prefix [on|off|display on|off|clipboard on|off]"))
+					}
+				}
 			default:
-				fmt.Println(styleError("unknown setting. try: setting clipboard on|off"))
+				fmt.Println(styleError("unknown setting. try: setting clipboard / grouping / prefix"))
 			}
 			continue
 		}
@@ -805,9 +1010,9 @@ func Run() {
 				engine.SetLastResult(f)
 			}
 			if engine.ClipboardEnabled {
-				clipboard.WriteAll(v)
+				clipboard.WriteAll(engine.ApplyClipboardTransforms(v))
 			}
-			fmt.Println(colorizeResult(v))
+			fmt.Println(colorizeResult(engine.ApplyDisplayTransforms(v)))
 		case func(float64) string, func(float64) float64:
 			fmt.Println(styleError("error: function needs arguments, e.g. bin(255)"))
 		default:

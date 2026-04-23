@@ -23,10 +23,14 @@ func configFilePath() (string, error) {
 }
 
 type wrkrConfig struct {
-	Autoload   bool   `json:"autoload"`
-	FormatMode string `json:"format_mode,omitempty"`
-	TypeMode   string `json:"type_mode,omitempty"`
-	Clipboard  *bool  `json:"clipboard,omitempty"` // nil = unset → default on
+	Autoload         bool   `json:"autoload"`
+	FormatMode       string `json:"format_mode,omitempty"`
+	TypeMode         string `json:"type_mode,omitempty"`
+	Clipboard        *bool  `json:"clipboard,omitempty"`          // nil = unset → default on
+	GroupingDisplay  *bool  `json:"grouping_display,omitempty"`   // nil = unset → default on
+	GroupingClipboard *bool `json:"grouping_clipboard,omitempty"` // nil = unset → default off
+	PrefixDisplay    *bool  `json:"prefix_display,omitempty"`     // nil = unset → default on
+	PrefixClipboard  *bool  `json:"prefix_clipboard,omitempty"`   // nil = unset → default off
 }
 
 // ReadAppConfig reads ~/.wrkr_config.json and returns the parsed config.

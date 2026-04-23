@@ -11,6 +11,17 @@ import (
 // CurrentMode is the active output/display mode.
 var CurrentMode = "dec"
 
+// Display/clipboard formatting settings.
+//
+//   GroupingDisplay   — add _ separators in terminal output (e.g. 1_048_576, 0b1111_1011)
+//   GroupingClipboard — add _ separators in clipboard copy
+//   PrefixDisplay     — show 0x/0b/0o prefix in terminal output
+//   PrefixClipboard   — show 0x/0b/0o prefix in clipboard copy
+var GroupingDisplay = true
+var GroupingClipboard = false
+var PrefixDisplay = true
+var PrefixClipboard = false
+
 // ModeMap normalises user input to a canonical mode name.
 // Used when the user types "mode <X>" explicitly.
 // Width-suffixed two's complement modes (bin8…bin512, hex8…hex128, oct8…oct64)
@@ -40,6 +51,123 @@ func init() {
 	}
 }
 
+
+// groupRight groups a digit string from the right with "_" every n chars.
+// Returns the input unchanged if it fits in a single group.
+func groupRight(digits string, n int) string {
+	if len(digits) <= n {
+		return digits
+	}
+	rem := len(digits) % n
+	var parts []string
+	if rem > 0 {
+		parts = append(parts, digits[:rem])
+	}
+	for i := rem; i < len(digits); i += n {
+		parts = append(parts, digits[i:i+n])
+	}
+	return strings.Join(parts, "_")
+}
+
+// addGrouping inserts _ separators into a formatted numeric string.
+//   binary:  group by 4 nibbles  (0b1111_1011)
+//   hex:     group by 4 nibbles  (0xDEAD_BEEF)
+//   decimal: group integer part by 3, only when ≥ 4 integer digits  (1_048_576)
+//   octal:   no grouping
+func addGrouping(s string) string {
+	neg := strings.HasPrefix(s, "-")
+	if neg {
+		s = s[1:]
+	}
+	// Only process strings that look like numeric values.
+	if len(s) == 0 || !isNumericString(s) {
+		if neg {
+			return "-" + s
+		}
+		return s
+	}
+	var result string
+	lower := strings.ToLower(s)
+	switch {
+	case strings.HasPrefix(lower, "0b"):
+		result = "0b" + groupRight(s[2:], 4)
+	case strings.HasPrefix(lower, "0x"):
+		result = "0x" + groupRight(s[2:], 4)
+	case strings.HasPrefix(lower, "0o"):
+		result = s // no grouping for octal
+	default:
+		// Decimal: group integer part by 3 if >= 4 digits.
+		dotIdx := strings.Index(s, ".")
+		intPart, fracPart := s, ""
+		if dotIdx >= 0 {
+			intPart = s[:dotIdx]
+			fracPart = s[dotIdx:]
+		}
+		if len(intPart) >= 4 {
+			intPart = groupRight(intPart, 3)
+		}
+		result = intPart + fracPart
+	}
+	if neg {
+		return "-" + result
+	}
+	return result
+}
+
+// isNumericString returns true when s starts with a digit or a 0x/0b/0o prefix.
+func isNumericString(s string) bool {
+	if len(s) == 0 {
+		return false
+	}
+	lower := strings.ToLower(s)
+	return (s[0] >= '0' && s[0] <= '9') ||
+		strings.HasPrefix(lower, "0x") ||
+		strings.HasPrefix(lower, "0b") ||
+		strings.HasPrefix(lower, "0o")
+}
+
+// stripPrefix removes the 0x/0b/0o prefix from a formatted numeric string.
+// Handles negative values (-0xFF → -FF). Non-prefixed strings are unchanged.
+func stripPrefix(s string) string {
+	neg := strings.HasPrefix(s, "-")
+	if neg {
+		s = s[1:]
+	}
+	lower := strings.ToLower(s)
+	for _, pfx := range []string{"0x", "0b", "0o"} {
+		if strings.HasPrefix(lower, pfx) {
+			s = s[2:]
+			break
+		}
+	}
+	if neg {
+		return "-" + s
+	}
+	return s
+}
+
+// ApplyDisplayTransforms applies grouping and prefix settings to a formatted value
+// string for terminal display.
+func ApplyDisplayTransforms(s string) string {
+	if GroupingDisplay {
+		s = addGrouping(s)
+	}
+	if !PrefixDisplay {
+		s = stripPrefix(s)
+	}
+	return s
+}
+
+// ApplyClipboardTransforms applies grouping and prefix settings for clipboard copy.
+func ApplyClipboardTransforms(s string) string {
+	if GroupingClipboard {
+		s = addGrouping(s)
+	}
+	if !PrefixClipboard {
+		s = stripPrefix(s)
+	}
+	return s
+}
 
 // FormatDecimal formats a float64 as a clean decimal string (no trailing zeros).
 func FormatDecimal(val float64) string {
@@ -186,9 +314,9 @@ var unitDisplayLabels = map[string]string{
 func FormatWithTargetUnit(val float64, unitAlias string) string {
 	label, ok := unitDisplayLabels[unitAlias]
 	if !ok {
-		return FormatDecimal(val)
+		return ApplyDisplayTransforms(FormatDecimal(val))
 	}
-	return FormatDecimal(val) + " " + label
+	return ApplyDisplayTransforms(FormatDecimal(val)) + " " + label
 }
 
 // HumanReadableSize converts a raw byte count into a (coefficient, label) pair.
@@ -239,29 +367,29 @@ func FormatTerminal(val float64, sizeCtx SizeUnitContext, typeHint string) strin
 	if base, bits, ok := ParseWidthMode(CurrentMode); ok {
 		switch base {
 		case "bin":
-			return appendType(fmt.Sprintf("%s  [Bin%d]", FormatBinN(val, bits), bits))
+			return appendType(fmt.Sprintf("%s  [Bin%d]", ApplyDisplayTransforms(FormatBinN(val, bits)), bits))
 		case "hex":
-			return appendType(fmt.Sprintf("%s  [Hex%d]", FormatHexN(val, bits), bits))
+			return appendType(fmt.Sprintf("%s  [Hex%d]", ApplyDisplayTransforms(FormatHexN(val, bits)), bits))
 		case "oct":
-			return appendType(fmt.Sprintf("%s  [Oct%d]", FormatOctN(val, bits), bits))
+			return appendType(fmt.Sprintf("%s  [Oct%d]", ApplyDisplayTransforms(FormatOctN(val, bits)), bits))
 		}
 	}
 	switch CurrentMode {
 	case "hex":
-		return appendType(fmt.Sprintf("%s  [Hex]", FormatHex(val)))
+		return appendType(fmt.Sprintf("%s  [Hex]", ApplyDisplayTransforms(FormatHex(val))))
 	case "bin":
-		return appendType(fmt.Sprintf("%s  [Bin]", FormatBin(val)))
+		return appendType(fmt.Sprintf("%s  [Bin]", ApplyDisplayTransforms(FormatBin(val))))
 	case "oct", "octal":
-		return appendType(fmt.Sprintf("%s  [Oct]", FormatOct(val)))
+		return appendType(fmt.Sprintf("%s  [Oct]", ApplyDisplayTransforms(FormatOct(val))))
 	case "size":
 		coef, label := HumanReadableSize(val)
 		return appendType(fmt.Sprintf("%s %s", coef, label))
 	case "bytes":
-		return appendType(fmt.Sprintf("%s B", FormatDecimal(val)))
+		return appendType(fmt.Sprintf("%s B", ApplyDisplayTransforms(FormatDecimal(val))))
 	case "bits":
-		return appendType(fmt.Sprintf("%s bits", FormatDecimal(val*8)))
+		return appendType(fmt.Sprintf("%s bits", ApplyDisplayTransforms(FormatDecimal(val*8))))
 	default: // "dec"
-		raw := FormatDecimal(val)
+		raw := ApplyDisplayTransforms(FormatDecimal(val))
 		if sizeCtx == 0 {
 			return appendType(raw)
 		}
@@ -278,31 +406,36 @@ func FormatTerminal(val float64, sizeCtx SizeUnitContext, typeHint string) strin
 
 // FormatClipboard returns the string written to the clipboard.
 func FormatClipboard(val float64) string {
+	var s string
 	if base, bits, ok := ParseWidthMode(CurrentMode); ok {
 		switch base {
 		case "bin":
-			return FormatBinN(val, bits)
+			s = FormatBinN(val, bits)
 		case "hex":
-			return FormatHexN(val, bits)
+			s = FormatHexN(val, bits)
 		case "oct":
-			return FormatOctN(val, bits)
+			s = FormatOctN(val, bits)
+		}
+		if s != "" {
+			return ApplyClipboardTransforms(s)
 		}
 	}
 	switch CurrentMode {
 	case "hex":
-		return FormatHex(val)
+		s = FormatHex(val)
 	case "bin":
-		return FormatBin(val)
+		s = FormatBin(val)
 	case "oct", "octal":
-		return FormatOct(val)
+		s = FormatOct(val)
 	case "size":
 		coef, _ := HumanReadableSize(val)
-		return coef
+		return coef // size coefficient is never prefixed/grouped
 	case "bytes":
-		return FormatDecimal(val)
+		s = FormatDecimal(val)
 	case "bits":
-		return FormatDecimal(val * 8)
+		s = FormatDecimal(val * 8)
 	default:
-		return FormatDecimal(val)
+		s = FormatDecimal(val)
 	}
+	return ApplyClipboardTransforms(s)
 }

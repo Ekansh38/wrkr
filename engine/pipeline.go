@@ -236,10 +236,25 @@ func DetectConversionTarget(input string) string {
 	return ""
 }
 
+// reSepStrip matches numeric literals that may contain _ separators.
+// Token-level: only matches things starting with a digit or 0x/0b/0o — never bare
+// identifiers like dead_beef.
+var reSepStrip = regexp.MustCompile(`(?i)\b(0x[0-9a-fA-F][0-9a-fA-F_]*|0b[01][01_]*|0o[0-7][0-7_]*|[0-9][0-9_]*(?:\.[0-9_]*)?(?:e[-+]?[0-9_]+)?)`)
+
+// StripNumericSeparators removes _ grouping separators from numeric literals.
+// "1_000_000" → "1000000", "0b1011_1011" → "0b10111011", "0xDEAD_BEEF" → "0xDEADBEEF".
+// Bare identifiers (like dead_beef) are never touched.
+func StripNumericSeparators(s string) string {
+	return reSepStrip.ReplaceAllStringFunc(s, func(m string) string {
+		return strings.ReplaceAll(m, "_", "")
+	})
+}
+
 // BuildASTString runs the full preprocessing pipeline on a raw expression string,
 // producing a form that the expr evaluator can compile.
 func BuildASTString(input string) string {
-	s := ProcessConversions(input)
+	s := StripNumericSeparators(input)
+	s = ProcessConversions(s)
 	s = ProcessFormatting(s)
 	s = FixImplicitMultiplication(s)
 	s = RewriteBitwiseOps(s)
