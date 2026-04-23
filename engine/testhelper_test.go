@@ -21,17 +21,49 @@ func pipeline(input string) string {
 }
 
 // eval runs the full preprocessing pipeline on input and returns the float64 result.
+// tryCompileRun compiles and runs s, returning (result, ok).
+// If the compile fails or the result is a string (format function in arithmetic
+// context produces string concat), and s contains format functions, strips them
+// and retries once.
+func tryCompileRun(s string, env map[string]interface{}) (interface{}, error) {
+	attempt := func(ast string) (interface{}, error) {
+		prog, err := expr.Compile(ast, expr.Env(env))
+		if err != nil {
+			return nil, err
+		}
+		return expr.Run(prog, env)
+	}
+
+	res, err := attempt(s)
+	// Retry with stripped format wrappers when:
+	//   (a) compile/run failed, OR
+	//   (b) result is a string but s contains format functions (string + string concat)
+	if engine.ContainsFormatFn(s) {
+		needRetry := err != nil
+		if !needRetry {
+			if _, isStr := res.(string); isStr {
+				needRetry = true
+			}
+		}
+		if needRetry {
+			stripped := engine.StripFormatWrappers(s)
+			if stripped != s {
+				if res2, err2 := attempt(stripped); err2 == nil {
+					return res2, nil
+				}
+			}
+		}
+	}
+	return res, err
+}
+
 func eval(t *testing.T, input string) float64 {
 	t.Helper()
 	s := pipeline(input)
 	env := engine.GetMergedEnv()
-	prog, err := expr.Compile(s, expr.Env(env))
+	res, err := tryCompileRun(s, env)
 	if err != nil {
-		t.Fatalf("eval compile(%q -> %q): %v", input, s, err)
-	}
-	res, err := expr.Run(prog, env)
-	if err != nil {
-		t.Fatalf("eval run(%q): %v", input, err)
+		t.Fatalf("eval(%q -> %q): %v", input, s, err)
 	}
 	switch v := res.(type) {
 	case float64:

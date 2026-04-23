@@ -490,3 +490,59 @@ func TestClipboard_NoGrouping_NoPrefix(t *testing.T) {
 		t.Errorf("FormatClipboard hex raw = %q, want DEADBEEF", s)
 	}
 }
+
+// ── StripFormatWrappers ───────────────────────────────────────────────────────
+
+func TestStrip_HexPlusNum(t *testing.T) {
+	got := engine.StripFormatWrappers("hex(255) + 1")
+	if got != "255 + 1" {
+		t.Errorf("StripFormatWrappers: got %q, want %q", got, "255 + 1")
+	}
+}
+
+func TestStrip_TwoHex(t *testing.T) {
+	got := engine.StripFormatWrappers("hex(a) + hex(b)")
+	if got != "a + b" {
+		t.Errorf("StripFormatWrappers: got %q, want %q", got, "a + b")
+	}
+}
+
+func TestStrip_Nested(t *testing.T) {
+	got := engine.StripFormatWrappers("hex(bin(255))")
+	if got != "255" {
+		t.Errorf("StripFormatWrappers nested: got %q, want %q", got, "255")
+	}
+}
+
+func TestStrip_NoFormatFns(t *testing.T) {
+	input := "a + b * 2"
+	got := engine.StripFormatWrappers(input)
+	if got != input {
+		t.Errorf("StripFormatWrappers no-op: got %q, want %q", got, input)
+	}
+}
+
+// ── Arithmetic with format functions (via StripFormatWrappers fallback) ───────
+
+func TestEval_HexPlusOne(t *testing.T) {
+	near(t, eval(t, "hex(255) + 1"), 256, "hex(255) + 1")
+}
+
+func TestEval_BinTimesTwo(t *testing.T) {
+	near(t, eval(t, "bin(0b1010) + bin(0b0101)"), 15, "bin(10) + bin(5)")
+}
+
+func TestEval_HexComparison(t *testing.T) {
+	// hex(255) == 0xFF should evaluate (255 == 255 = true → result 1 from ternary not tested here)
+	// Just verify it doesn't error — we can't easily test bool in eval(), so use arithmetic
+	near(t, eval(t, "hex(100) + hex(56)"), 156, "hex(100) + hex(56)")
+}
+
+func TestEval_U8OfHex(t *testing.T) {
+	// u8(hex(300)) — hex is stripped, u8(300) = 44
+	near(t, eval(t, "u8(hex(300))"), 44, "u8(hex(300))")
+}
+
+func TestEval_Bin32InArithmetic(t *testing.T) {
+	near(t, eval(t, "bin32(255) * 2"), 510, "bin32(255) * 2")
+}

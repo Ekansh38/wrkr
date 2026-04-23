@@ -252,6 +252,55 @@ func StripNumericSeparators(s string) string {
 	})
 }
 
+// reFormatCall matches the start of a format function call (name + open paren).
+var reFormatCall = regexp.MustCompile(`(?i)\b(hex\d*|bin\d*|oct(?:al)?\d*|dec(?:imal)?)\(`)
+
+// ContainsFormatFn reports whether s contains a call to a format function
+// (hex/bin/oct/dec and their width variants). Used by the REPL and tests to
+// decide whether to attempt the StripFormatWrappers fallback.
+func ContainsFormatFn(s string) bool {
+	return reFormatCall.MatchString(s)
+}
+
+// StripFormatWrappers removes all format function wrappers from an expression,
+// replacing each call with its inner argument.
+//
+//	"hex(a) + 1"    →  "a + 1"
+//	"hex(bin(255))" →  "255"
+//	"bin32(~x)"     →  "(~x)"  (inner preserved verbatim)
+//
+// This is used as a compile-time fallback: when hex/bin/oct/dec are used in
+// arithmetic or comparison contexts the expr type-checker rejects them (they
+// return strings), but the inner expressions are perfectly valid numerics.
+// Stripping the wrappers lets the arithmetic proceed; the result is then
+// displayed in the current output mode.
+func StripFormatWrappers(input string) string {
+	for {
+		loc := reFormatCall.FindStringIndex(input)
+		if loc == nil {
+			return input
+		}
+		openParen := loc[1] - 1
+		depth := 1
+		pos := openParen + 1
+		for pos < len(input) && depth > 0 {
+			switch input[pos] {
+			case '(':
+				depth++
+			case ')':
+				depth--
+			}
+			pos++
+		}
+		if depth != 0 {
+			// unmatched parens — bail out unchanged to avoid infinite loop
+			return input
+		}
+		inner := input[openParen+1 : pos-1]
+		input = input[:loc[0]] + inner + input[pos:]
+	}
+}
+
 // BuildASTString runs the full preprocessing pipeline on a raw expression string,
 // producing a form that the expr evaluator can compile.
 func BuildASTString(input string) string {

@@ -1006,18 +1006,39 @@ func Run() {
 		env := engine.GetMergedEnv()
 
 		program, compErr := expr.Compile(processedInput, expr.Env(env))
+		if compErr != nil && engine.ContainsFormatFn(processedInput) {
+			// Format functions return strings; strip wrappers and retry so that
+			// "hex(a) + 1" → "a + 1" compiles and evaluates correctly.
+			if stripped := engine.StripFormatWrappers(processedInput); stripped != processedInput {
+				if p2, err2 := expr.Compile(stripped, expr.Env(env)); err2 == nil {
+					program, compErr, processedInput = p2, nil, stripped
+				}
+			}
+		}
 		if compErr != nil {
 			fmt.Println(styleError("error: could not parse expression"))
 			fmt.Println(dimGray("  ast: " + processedInput))
-			if strings.ContainsAny(processedInput, "+-*/") && containsFormatFn(processedInput) {
-				fmt.Println(styleAutocorrect("  hint: format functions return strings — wrap the whole expression: hex(a + b), not hex(a) + hex(b)"))
-			}
 			continue
 		}
 		result, runErr := expr.Run(program, env)
 		if runErr != nil {
 			fmt.Println(styleError("error: " + runErr.Error()))
 			continue
+		}
+
+		// If the result is a string but the expression contains format functions
+		// combined with arithmetic, it means we got string concatenation instead of
+		// numeric addition (e.g. "bin(a) + bin(b)" → "0b10100b101"). Retry with
+		// format wrappers stripped.
+		if _, isStr := result.(string); isStr && engine.ContainsFormatFn(processedInput) {
+			if stripped := engine.StripFormatWrappers(processedInput); stripped != processedInput {
+				if p2, err2 := expr.Compile(stripped, expr.Env(env)); err2 == nil {
+					if res2, err2 := expr.Run(p2, env); err2 == nil {
+						result = res2
+						processedInput = stripped
+					}
+				}
+			}
 		}
 
 		switch v := result.(type) {
