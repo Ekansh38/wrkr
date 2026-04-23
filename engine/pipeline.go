@@ -228,3 +228,19 @@ func BuildASTString(input string) string {
 	s = TranslateBases(s)
 	return s
 }
+
+// ExpandConstants replaces known unit names and pi with their numeric values.
+// Used only for the debug "expanded" display step — not part of the eval pipeline.
+func ExpandConstants(input string) string {
+	re := regexp.MustCompile(`\b([a-zA-Z][a-zA-Z0-9]*)\b`)
+	return re.ReplaceAllStringFunc(input, func(match string) string {
+		lower := strings.ToLower(match)
+		if rate, ok := UnitRates[lower]; ok {
+			return FormatDecimal(rate)
+		}
+		if lower == "pi" {
+			return "3.141592653589793"
+		}
+		return match
+	})
+}

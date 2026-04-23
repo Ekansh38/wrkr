@@ -243,25 +243,37 @@ func Run() {
 		}
 	}
 
+	var scriptQueue []string
+
 	for {
-		fmt.Printf("\n%s\n", colorMode("["+engine.CurrentMode+"]"))
-		rawInput, err := line.Prompt("> ")
-		if err != nil {
-			if err == liner.ErrPromptAborted {
-				fmt.Println(dimGray("  :q to quit"))
+		var rawInput string
+
+		if len(scriptQueue) > 0 {
+			rawInput = scriptQueue[0]
+			scriptQueue = scriptQueue[1:]
+			fmt.Printf("\n%s %s\n", dimGray(">"), rawInput)
+		} else {
+			fmt.Printf("\n%s\n", colorMode("["+engine.CurrentMode+"]"))
+			var err error
+			rawInput, err = line.Prompt("> ")
+			if err != nil {
+				if err == liner.ErrPromptAborted {
+					scriptQueue = nil
+					fmt.Println(dimGray("  :q to quit"))
+					continue
+				}
+				if err == io.EOF {
+					return
+				}
 				continue
 			}
-			if err == io.EOF {
-				return
+			rawInput = strings.TrimSpace(rawInput)
+			if rawInput == "" {
+				continue
 			}
-			continue
+			line.AppendHistory(rawInput)
 		}
 
-		rawInput = strings.TrimSpace(rawInput)
-		if rawInput == "" {
-			continue
-		}
-		line.AppendHistory(rawInput)
 		lowerInput := strings.ToLower(rawInput)
 
 		// Built-in commands.
@@ -285,13 +297,14 @@ func Run() {
 			continue
 		}
 
-		// :e — open expression in $EDITOR.
+		// :e — open expression(s) in $EDITOR. Each non-empty line runs as a
+		// separate command so you can chain assignments and expressions.
 		if lowerInput == ":e" {
 			var histBuf bytes.Buffer
 			line.WriteHistory(&histBuf)
 			line.Close()
 
-			editorExpr, editorErr := openInEditor("")
+			editorContent, editorErr := openInEditor("")
 
 			setupLiner()
 			line.ReadHistory(&histBuf)
@@ -300,17 +313,30 @@ func Run() {
 				fmt.Println(styleError("editor error: " + editorErr.Error()))
 				continue
 			}
-			if editorExpr == "" {
+
+			var editorLines []string
+			for _, l := range strings.Split(editorContent, "\n") {
+				if t := strings.TrimSpace(l); t != "" && !strings.HasPrefix(t, "#") {
+					editorLines = append(editorLines, t)
+				}
+			}
+			if len(editorLines) == 0 {
 				continue
 			}
-			rawInput = editorExpr
+
+			// Queue all lines. The first one falls through into this iteration;
+			// the rest are prepended to scriptQueue for subsequent iterations.
+			rawInput = editorLines[0]
 			lowerInput = strings.ToLower(rawInput)
 			line.AppendHistory(rawInput)
+			if len(editorLines) > 1 {
+				scriptQueue = append(editorLines[1:], scriptQueue...)
+			}
 			fmt.Printf("%s %s\n", dimGray("running:"), rawInput)
 			// fall through to expression processing below
 		}
 
-		// Debug: show every pipeline step.
+		// Debug: show only changed pipeline steps + expanded constants.
 		if strings.HasPrefix(lowerInput, "debug ") {
 			debugExpr := strings.TrimSpace(rawInput[6:])
 			s0 := debugExpr
@@ -322,6 +348,7 @@ func Run() {
 			s5 := engine.ProcessFormatting(s4)
 			s6 := engine.FixImplicitMultiplication(s5)
 			s7 := engine.TranslateBases(s6)
+			s8 := engine.ExpandConstants(s6) // unit names -> numbers (pre-translate view)
 
 			steps := []struct{ label, val string }{
 				{"input   ", s0},
@@ -332,14 +359,17 @@ func Run() {
 				{"format  ", s5},
 				{"multiply", s6},
 				{"ast     ", s7},
+				{"expanded", s8},
 			}
 
 			fmt.Println()
 			prev := ""
 			for _, step := range steps {
-				changed := step.val != prev && prev != ""
+				if step.val == prev {
+					continue // skip unchanged steps
+				}
 				arrow := "  "
-				if changed {
+				if prev != "" {
 					arrow = dimGray("->")
 				}
 				fmt.Printf("  %s  %s %s\n", dimGray(step.label), arrow, boldWhite(step.val))
@@ -362,7 +392,7 @@ func Run() {
 					default:
 						resultStr = fmt.Sprintf("%v", v)
 					}
-					fmt.Printf("\n  %s     %s\n", dimGray("result  "), colorizeResult(resultStr))
+					fmt.Printf("\n  %s  %s\n", dimGray("result  "), colorizeResult(resultStr))
 				}
 			}
 			fmt.Println()
