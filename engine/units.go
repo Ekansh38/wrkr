@@ -37,6 +37,8 @@ var CalcEnv = map[string]interface{}{
 	"round": math.Round,
 	"floor": math.Floor,
 	"ceil":  math.Ceil,
+	"min":   math.Min,
+	"max":   math.Max,
 	// Base-conversion helpers (return formatted strings)
 	"hex":     func(f float64) string { return FormatHex(f) },
 	"bin":     func(f float64) string { return FormatBin(f) },

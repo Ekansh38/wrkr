@@ -275,7 +275,7 @@ _ / 60 / 60 / 24
 ## Math
 
 ```
-sin  cos  tan  hypot  sqrt  abs  log  log2  log10  pow  round  floor  ceil  pi
+sin  cos  tan  hypot  sqrt  abs  log  log2  log10  pow  round  floor  ceil  min  max  pi
 ```
 
 ## Autocorrect

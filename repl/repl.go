@@ -23,7 +23,7 @@ func printHelp(topic string) {
 		fmt.Println("math")
 		fmt.Println()
 		fmt.Println("  sin(x)  cos(x)  tan(x)  hypot(a,b)  pi")
-		fmt.Println("  sqrt(x)  abs(x)  pow(base,exp)")
+		fmt.Println("  sqrt(x)  abs(x)  pow(base,exp)  min(a,b)  max(a,b)")
 		fmt.Println("  round(x)  floor(x)  ceil(x)")
 		fmt.Println("  log(x)  log2(x)  log10(x)")
 		fmt.Println()
