@@ -2,7 +2,7 @@
 
 > AI generated. Personal use. No guarantees.
 
-Terminal calculator that knows units, remembers variables, and copies results to clipboard. Built because `python3 -c "print(128*1024*1024/4096)"` is too many keystrokes.
+Terminal calculator that knows units, remembers variables, and copies results to clipboard. Built because `python3 -c "print(128*1024*1024/4096)"` is too confusing and weird.
 
 ## Why
 

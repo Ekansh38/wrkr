@@ -10,18 +10,22 @@ import (
 	"github.com/Ekansh38/wrkr/engine"
 )
 
-// eval runs the full preprocessing pipeline on input and returns the float64 result.
-// It mirrors exactly what the REPL does: FixBaseTypos → FixNakedBases → BuildASTString → Compile → Run.
-func eval(t *testing.T, input string) float64 {
-	t.Helper()
+// pipeline runs the full preprocessing pipeline and returns the AST string.
+func pipeline(input string) string {
 	s := engine.FixBaseTypos(input)
 	s = engine.FixNakedBases(s)
 	s = strings.ReplaceAll(s, " into ", " to ")
-	s = engine.BuildASTString(s)
+	return engine.BuildASTString(s)
+}
+
+// eval runs the full preprocessing pipeline on input and returns the float64 result.
+func eval(t *testing.T, input string) float64 {
+	t.Helper()
+	s := pipeline(input)
 	env := engine.GetMergedEnv()
 	prog, err := expr.Compile(s, expr.Env(env))
 	if err != nil {
-		t.Fatalf("eval compile(%q): %v", input, err)
+		t.Fatalf("eval compile(%q -> %q): %v", input, s, err)
 	}
 	res, err := expr.Run(prog, env)
 	if err != nil {
@@ -39,6 +43,37 @@ func eval(t *testing.T, input string) float64 {
 	}
 	t.Fatalf("eval(%q): unexpected result type %T = %v", input, res, res)
 	return 0
+}
+
+// evalStr runs the full pipeline and returns the string result (for base conversion functions).
+func evalStr(t *testing.T, input string) string {
+	t.Helper()
+	s := pipeline(input)
+	env := engine.GetMergedEnv()
+	prog, err := expr.Compile(s, expr.Env(env))
+	if err != nil {
+		t.Fatalf("evalStr compile(%q -> %q): %v", input, s, err)
+	}
+	res, err := expr.Run(prog, env)
+	if err != nil {
+		t.Fatalf("evalStr run(%q): %v", input, err)
+	}
+	if v, ok := res.(string); ok {
+		return v
+	}
+	// numeric — format as decimal string so callers can strcmp
+	switch v := res.(type) {
+	case float64:
+		return engine.FormatDecimal(v)
+	case float32:
+		return engine.FormatDecimal(float64(v))
+	case int:
+		return engine.FormatDecimal(float64(v))
+	case int64:
+		return engine.FormatDecimal(float64(v))
+	}
+	t.Fatalf("evalStr(%q): unexpected result type %T = %v", input, res, res)
+	return ""
 }
 
 // near asserts that got ≈ want within a relative tolerance of 1e-9
