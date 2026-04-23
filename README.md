@@ -90,6 +90,40 @@ Annotated source: middle word = source base, `to X` = target. Useful when you al
 
 dec mode adds a size hint `[1 MB]` when the expression involves a data unit. Suppressed when units cancel out (e.g. `(256 * mb) / (4 * gb) * 1000` = 62.5, units cancelled, result is dimensionless).
 
+## Two's complement
+
+`hex`/`bin`/`oct` show signed output: `-5` → `-0x5`. For the actual bit pattern use the width-specific forms.
+
+| width | bin | hex | oct |
+|-------|-----|-----|-----|
+| 8 | `bin8` | `hex8` | `oct8` |
+| 16 | `bin16` | `hex16` | `oct16` |
+| 32 | `bin32` | `hex32` | `oct32` |
+| 64 | `bin64` | `hex64` | `oct64` |
+| 128 | `bin128` | `hex128` | — |
+| 256 | `bin256` | — | — |
+| 512 | `bin512` | — | — |
+
+Available as both modes and functions:
+
+```
+bin32(-5)           -> 0b11111111111111111111111111111011
+hex32(-5)           -> 0xFFFFFFFB
+hex64(-1)           -> 0xFFFFFFFFFFFFFFFF
+hex128(-1)          -> 0xFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF
+bin8(300)           -> 0b00101100    (truncated, low 8 bits, matches hardware)
+
+mode bin32
+4 - 8               -> 0b11111111111111111111111111111100  [Bin32]
+```
+
+Positive values are zero-padded to the full width. Values outside the range truncate to the low N bits (same as a C cast). Composes with `_`:
+
+```
+4 - 8
+hex32(_)            -> 0xFFFFFFFC
+```
+
 ## Variables
 
 Saved to `~/.wrkr_vars.json`. Autoload preference in `~/.wrkr_config.json`.

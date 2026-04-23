@@ -1,6 +1,9 @@
 package engine
 
-import "math"
+import (
+	"fmt"
+	"math"
+)
 
 // Unit pairs a set of alias strings with a base-unit multiplier.
 // Distance baseline: 1 meter. Data baseline: 1 byte.
@@ -74,5 +77,20 @@ func init() {
 			CalcEnv[alias] = def.Rate
 			SizeUnitAliases[alias] = true
 		}
+	}
+
+	// Two's complement width-specific functions.
+	// bin8…bin512, hex8…hex128, oct8…oct64.
+	for _, bits := range []int{8, 16, 32, 64, 128, 256, 512} {
+		b := bits
+		CalcEnv[fmt.Sprintf("bin%d", b)] = func(f float64) string { return FormatBinN(f, b) }
+	}
+	for _, bits := range []int{8, 16, 32, 64, 128} {
+		b := bits
+		CalcEnv[fmt.Sprintf("hex%d", b)] = func(f float64) string { return FormatHexN(f, b) }
+	}
+	for _, bits := range []int{8, 16, 32, 64} {
+		b := bits
+		CalcEnv[fmt.Sprintf("oct%d", b)] = func(f float64) string { return FormatOctN(f, b) }
 	}
 }
