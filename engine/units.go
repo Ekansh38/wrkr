@@ -111,32 +111,34 @@ func init() {
 	// >> is arithmetic (sign-preserving), matching C signed-integer semantics.
 	// Bitwise functions accept interface{} so that format-function outputs (strings)
 	// compose naturally: "bin32(x) & 0xFF" and "hex(a) | hex(b)" both work.
-	// CoerceToFloat handles float64 pass-through and string parsing via ParseResultString.
+	// CoerceToInt64 is used directly (not CoerceToFloat→safeInt64) so that wide
+	// binary/hex strings like bin64(-1)="0b111…111" keep their signed value (-1)
+	// instead of overflowing through float64 and clamping to MaxInt64.
 	CalcEnv["band"] = func(a, b interface{}) float64 {
-		return float64(safeInt64(CoerceToFloat(a)) & safeInt64(CoerceToFloat(b)))
+		return float64(CoerceToInt64(a) & CoerceToInt64(b))
 	}
 	CalcEnv["bor"] = func(a, b interface{}) float64 {
-		return float64(safeInt64(CoerceToFloat(a)) | safeInt64(CoerceToFloat(b)))
+		return float64(CoerceToInt64(a) | CoerceToInt64(b))
 	}
 	CalcEnv["bxor"] = func(a, b interface{}) float64 {
-		return float64(safeInt64(CoerceToFloat(a)) ^ safeInt64(CoerceToFloat(b)))
+		return float64(CoerceToInt64(a) ^ CoerceToInt64(b))
 	}
 	CalcEnv["bnot"] = func(a interface{}) float64 {
-		return float64(^safeInt64(CoerceToFloat(a)))
+		return float64(^CoerceToInt64(a))
 	}
 	CalcEnv["blshift"] = func(a, b interface{}) float64 {
-		shift := safeInt64(CoerceToFloat(b))
+		shift := CoerceToInt64(b)
 		if shift < 0 || shift >= 64 {
 			return 0
 		}
-		return float64(safeInt64(CoerceToFloat(a)) << uint(shift))
+		return float64(CoerceToInt64(a) << uint(shift))
 	}
 	CalcEnv["brshift"] = func(a, b interface{}) float64 {
-		shift := safeInt64(CoerceToFloat(b))
+		shift := CoerceToInt64(b)
 		if shift < 0 || shift >= 64 {
 			return 0
 		}
-		return float64(safeInt64(CoerceToFloat(a)) >> uint(shift))
+		return float64(CoerceToInt64(a) >> uint(shift))
 	}
 
 	// Integer cast functions: u8/s8 … u128/s128.

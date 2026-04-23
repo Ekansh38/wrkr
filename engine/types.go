@@ -152,10 +152,101 @@ func ParseResultString(s string) (float64, bool) {
 // Default true; toggled via "setting clipboard on|off".
 var ClipboardEnabled = true
 
+// parseStringAsInt64 converts a formatted numeric string to int64 for use in
+// bitwise operations.
+//
+// For binary and hex strings the value is parsed as a big.Int, masked to 64 bits,
+// then reinterpreted as int64 via bit-pattern (int64(uint64(n))).  This matches
+// hardware: "0b111…111" (64 ones from bin64(-1)) → -1, while a short string like
+// "0b10101010" (8 bits, value 170) → 170.  No explicit width-based sign logic
+// needed — the uint64→int64 reinterpretation handles overflow naturally.
+//
+// Strings with an explicit '-' prefix are negated after parsing.
+func parseStringAsInt64(s string) (int64, bool) {
+	s = strings.TrimSpace(s)
+	s = strings.ReplaceAll(s, "_", "") // strip grouping separators
+	if s == "" {
+		return 0, false
+	}
+
+	neg := strings.HasPrefix(s, "-")
+	if neg {
+		s = s[1:]
+	}
+	lower := strings.ToLower(s)
+
+	var n *big.Int
+
+	switch {
+	case strings.HasPrefix(lower, "0b"):
+		n = new(big.Int)
+		if _, ok := n.SetString(s[2:], 2); !ok {
+			return 0, false
+		}
+	case strings.HasPrefix(lower, "0x"):
+		n = new(big.Int)
+		if _, ok := n.SetString(s[2:], 16); !ok {
+			return 0, false
+		}
+	case strings.HasPrefix(lower, "0o"):
+		n = new(big.Int)
+		if _, ok := n.SetString(s[2:], 8); !ok {
+			return 0, false
+		}
+	default:
+		f, err := strconv.ParseFloat(s, 64)
+		if err != nil {
+			return 0, false
+		}
+		v := safeInt64(f)
+		if neg {
+			return -v, true
+		}
+		return v, true
+	}
+
+	if neg {
+		n.Neg(n)
+		if n.IsInt64() {
+			return n.Int64(), true
+		}
+		return math.MinInt64, true
+	}
+
+	// Mask to 64 bits, then reinterpret the bit pattern as int64.
+	// This handles full-width strings naturally:
+	//   bin64(-1) → "0b111…111" → n = 2^64-1 → uint64 = 18446744073709551615 → int64 = -1
+	//   bin(170)  → "0b10101010" → n = 170 → uint64 = 170 → int64 = 170  (no overflow)
+	mask := new(big.Int).SetUint64(math.MaxUint64)
+	n.And(n, mask)
+	return int64(n.Uint64()), true
+}
+
+// CoerceToInt64 converts any value to int64 for use in bitwise operations.
+// For strings produced by format functions (bin64, hex32, etc.) the bit width
+// is derived from the string so that two's complement sign is preserved:
+// CoerceToInt64("0b1111…1111") → -1  (not MaxInt64).
+func CoerceToInt64(v interface{}) int64 {
+	switch x := v.(type) {
+	case float64:
+		return safeInt64(x)
+	case float32:
+		return safeInt64(float64(x))
+	case int:
+		return int64(x)
+	case int64:
+		return x
+	case string:
+		if i, ok := parseStringAsInt64(x); ok {
+			return i
+		}
+	}
+	return 0
+}
+
 // CoerceToFloat converts a value to float64.
-// Accepts float64, float32, int, int64, and strings returned by format functions
-// (hex/bin/oct/dec — parsed via ParseResultString).
-// Returns 0 for unrecognised types.
+// Strings from format functions are converted via CoerceToInt64 so that
+// wide binary/hex bit patterns preserve their signed meaning.
 func CoerceToFloat(v interface{}) float64 {
 	switch x := v.(type) {
 	case float64:
@@ -167,9 +258,7 @@ func CoerceToFloat(v interface{}) float64 {
 	case int64:
 		return float64(x)
 	case string:
-		if f, ok := ParseResultString(x); ok {
-			return f
-		}
+		return float64(CoerceToInt64(x))
 	}
 	return 0
 }

@@ -507,3 +507,30 @@ func TestEval_FormatFn_Bin64AndSmall(t *testing.T) {
 	// -129 & 100 = 100 (since 100's bits are all within -129's set bits).
 	near(t, eval(t, "bin64(-129) & bin64(100)"), 100, "bin64(-129) & bin64(100)")
 }
+
+func TestEval_FormatFn_Bin64NegAndNeg(t *testing.T) {
+	// bin64(-1) & bin64(-2): precision test — previous code gave wrong answer
+	// due to "0b111…111" overflowing float64 → MaxInt64.
+	near(t, eval(t, "bin64(-1) & bin64(-2)"), -2, "bin64(-1) & bin64(-2)")
+}
+
+func TestEval_FormatFn_Bin64NegOr(t *testing.T) {
+	near(t, eval(t, "bin64(-1) | bin64(0)"), -1, "bin64(-1) | bin64(0)")
+}
+
+func TestEval_FormatFn_Bin64NegXor(t *testing.T) {
+	// -1 ^ -1 = 0
+	near(t, eval(t, "bin64(-1) ^ bin64(-1)"), 0, "bin64(-1) ^ bin64(-1)")
+}
+
+func TestEval_FormatFn_Hex64NegAnd(t *testing.T) {
+	// hex64(-1) = "0xFFFFFFFFFFFFFFFF" (16 hex digits = 64 bits).
+	// CoerceToInt64: n=2^64-1, int64(uint64(2^64-1)) = -1.
+	near(t, eval(t, "hex64(-1) & hex64(-2)"), -2, "hex64(-1) & hex64(-2)")
+}
+
+func TestEval_FormatFn_Hex16InBitwiseIs64Bit(t *testing.T) {
+	// hex16 is 16-bit wide: hex16(-1) = "0xFFFF" = 65535 in 64-bit context.
+	// 65535 & 65534 = 65534 (correct 64-bit result, not -2).
+	near(t, eval(t, "hex16(-1) & hex16(-2)"), 65534, "hex16(-1) & hex16(-2) in 64-bit = 65534")
+}
