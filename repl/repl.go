@@ -152,14 +152,22 @@ func Run() {
 			fmt.Printf("Current output mode: %s\n", colorMode(engine.CurrentMode))
 			continue
 		}
-		modeCmd := lowerInput
 		if strings.HasPrefix(lowerInput, "mode ") {
-			modeCmd = strings.TrimSpace(strings.TrimPrefix(lowerInput, "mode "))
-		}
-		if newMode, ok := engine.ModeMap[modeCmd]; ok {
-			engine.CurrentMode = newMode
-			fmt.Printf("Output mode → %s\n", colorMode(newMode))
-			continue
+			// "mode bits", "mode bytes", "mode hex", etc. — full ModeMap.
+			modeCmd := strings.TrimSpace(strings.TrimPrefix(lowerInput, "mode "))
+			if newMode, ok := engine.ModeMap[modeCmd]; ok {
+				engine.CurrentMode = newMode
+				fmt.Printf("Output mode → %s\n", colorMode(newMode))
+				continue
+			}
+		} else {
+			// Bare word switch: only non-unit aliases (hex, bin, oct, dec, size).
+			// bits/bytes are excluded — they evaluate as unit expressions instead.
+			if newMode, ok := engine.BareModeAliases[lowerInput]; ok {
+				engine.CurrentMode = newMode
+				fmt.Printf("Output mode → %s\n", colorMode(newMode))
+				continue
+			}
 		}
 
 		// ── Variable assignment: name = expression ────────────────────────────
