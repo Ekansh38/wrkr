@@ -352,12 +352,14 @@ func runDrill(line *liner.State) {
 	for {
 		q := drill.Generate(mode, conv, rng)
 
-		prompt := fmt.Sprintf("  %s  →  %s: ",
+		// Print the colored question with fmt (liner can't handle ANSI codes in
+		// its prompt string — it miscounts width and may return an immediate error).
+		fmt.Printf("  %s  →  %s  ",
 			drillColorValue(q.From),
 			drillColorBase(q.ToBase),
 		)
 
-		ans, err := line.Prompt(prompt)
+		ans, err := line.Prompt("")
 		ans = strings.TrimSpace(ans)
 		if err != nil || drillQuit(ans) {
 			fmt.Println()
