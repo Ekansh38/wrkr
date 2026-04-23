@@ -62,7 +62,7 @@ func printHelp(topic string) {
 		fmt.Println("  30 cm to in   -> 11.811... in")
 		fmt.Println()
 		fmt.Println("  result ignores current output mode")
-	case "modes", "state":
+	case "modes", "state", "mode":
 		fmt.Println("output modes")
 		fmt.Println()
 		fmt.Println("  mode <name>    switch")
@@ -93,6 +93,8 @@ func printHelp(topic string) {
 		fmt.Println()
 		fmt.Println("  vars          list")
 		fmt.Println("  del block     remove")
+		fmt.Println()
+		fmt.Println("  _ holds the last numeric result (not persisted)")
 		fmt.Println()
 		fmt.Println("  saved to ~/.wrkr_vars.json, reloaded on next launch")
 		fmt.Println("  mode names (hex, bin, dec...) are reserved, cannot be used as var names")
@@ -329,7 +331,7 @@ func Run() {
 			if len(editorLines) > 1 {
 				scriptQueue = append(editorLines[1:], scriptQueue...)
 			}
-			fmt.Printf("%s %s\n", dimGray("running:"), rawInput)
+			fmt.Printf("\n%s %s\n", dimGray(">"), rawInput)
 			// fall through to expression processing below
 		}
 
@@ -419,6 +421,10 @@ func Run() {
 		// Delete a user-defined variable.
 		if strings.HasPrefix(lowerInput, "del ") {
 			varName := strings.TrimSpace(rawInput[4:])
+			if varName == "" {
+				fmt.Println(styleError("usage: del <name>"))
+				continue
+			}
 			if engine.DeleteVar(varName) {
 				validTokens = engine.GetValidTokens()
 				engine.PersistVars()
@@ -438,11 +444,15 @@ func Run() {
 		}
 		if strings.HasPrefix(lowerInput, "mode ") {
 			modeCmd := strings.TrimSpace(strings.TrimPrefix(lowerInput, "mode "))
-			if newMode, ok := engine.ModeMap[modeCmd]; ok {
+			if modeCmd == "help" {
+				printHelp("modes")
+			} else if newMode, ok := engine.ModeMap[modeCmd]; ok {
 				engine.CurrentMode = newMode
 				fmt.Printf("mode -> %s\n", colorMode(newMode))
-				continue
+			} else {
+				fmt.Printf("%s\n  tip: help modes\n", styleError("unknown mode: "+modeCmd))
 			}
+			continue
 		}
 
 		// Variable assignment: name = expression.

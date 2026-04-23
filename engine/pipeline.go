@@ -106,7 +106,7 @@ func ProcessConversions(input string) string {
 			rate2, ok2 := UnitRates[strings.ToLower(parts[3])]
 			if ok1 && ok2 {
 				val := TranslateBases(parts[1])
-				return fmt.Sprintf("(%s * (%f / %f))", val, rate1, rate2)
+				return fmt.Sprintf("(%s * (%s / %s))", val, FormatDecimal(rate1), FormatDecimal(rate2))
 			}
 		}
 		return match

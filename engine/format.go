@@ -37,9 +37,27 @@ func FormatDecimal(val float64) string {
 	return s
 }
 
-func FormatHex(f float64) string { return fmt.Sprintf("0x%X", int64(f)) }
-func FormatBin(f float64) string { return fmt.Sprintf("0b%b", int64(f)) }
-func FormatOct(f float64) string { return fmt.Sprintf("0o%o", int64(f)) }
+func FormatHex(f float64) string {
+	i := int64(f)
+	if i < 0 {
+		return fmt.Sprintf("-0x%X", -i)
+	}
+	return fmt.Sprintf("0x%X", i)
+}
+func FormatBin(f float64) string {
+	i := int64(f)
+	if i < 0 {
+		return fmt.Sprintf("-0b%b", -i)
+	}
+	return fmt.Sprintf("0b%b", i)
+}
+func FormatOct(f float64) string {
+	i := int64(f)
+	if i < 0 {
+		return fmt.Sprintf("-0o%o", -i)
+	}
+	return fmt.Sprintf("0o%o", i)
+}
 
 // formatSizeCoef formats a size coefficient for human-readable display (max 4 decimal places).
 func formatSizeCoef(val float64) string {
