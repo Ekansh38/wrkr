@@ -151,3 +151,25 @@ func ParseResultString(s string) (float64, bool) {
 // ClipboardEnabled controls whether results are copied to the clipboard.
 // Default true; toggled via "setting clipboard on|off".
 var ClipboardEnabled = true
+
+// CoerceToFloat converts a value to float64.
+// Accepts float64, float32, int, int64, and strings returned by format functions
+// (hex/bin/oct/dec — parsed via ParseResultString).
+// Returns 0 for unrecognised types.
+func CoerceToFloat(v interface{}) float64 {
+	switch x := v.(type) {
+	case float64:
+		return x
+	case float32:
+		return float64(x)
+	case int:
+		return float64(x)
+	case int64:
+		return float64(x)
+	case string:
+		if f, ok := ParseResultString(x); ok {
+			return f
+		}
+	}
+	return 0
+}

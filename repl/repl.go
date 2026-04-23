@@ -16,6 +16,25 @@ import (
 	"github.com/Ekansh38/wrkr/engine"
 )
 
+// containsFormatFn returns true if the expression contains a bare format-function call
+// (hex/bin/oct/dec and their width variants) — used to generate hints on compile errors.
+func containsFormatFn(s string) bool {
+	for _, fn := range []string{"hex(", "bin(", "oct(", "octal(", "dec(", "decimal("} {
+		if strings.Contains(s, fn) {
+			return true
+		}
+	}
+	// Width-specific: bin8..bin512, hex8..hex128, oct8..oct64
+	for _, prefix := range []string{"bin", "hex", "oct"} {
+		for _, w := range []string{"8(", "16(", "32(", "64(", "128(", "256(", "512("} {
+			if strings.Contains(s, prefix+w) {
+				return true
+			}
+		}
+	}
+	return false
+}
+
 func printHelp(topic string) {
 	fmt.Println()
 	switch strings.ToLower(topic) {
@@ -990,6 +1009,9 @@ func Run() {
 		if compErr != nil {
 			fmt.Println(styleError("error: could not parse expression"))
 			fmt.Println(dimGray("  ast: " + processedInput))
+			if strings.ContainsAny(processedInput, "+-*/") && containsFormatFn(processedInput) {
+				fmt.Println(styleAutocorrect("  hint: format functions return strings — wrap the whole expression: hex(a + b), not hex(a) + hex(b)"))
+			}
 			continue
 		}
 		result, runErr := expr.Run(program, env)

@@ -109,23 +109,34 @@ func init() {
 	// These are called by RewriteBitwiseOps after rewriting & | ^ ~ << >> to
 	// function-call form.  All operate on int64 bit patterns.
 	// >> is arithmetic (sign-preserving), matching C signed-integer semantics.
-	CalcEnv["band"] = func(a, b float64) float64 { return float64(safeInt64(a) & safeInt64(b)) }
-	CalcEnv["bor"] = func(a, b float64) float64 { return float64(safeInt64(a) | safeInt64(b)) }
-	CalcEnv["bxor"] = func(a, b float64) float64 { return float64(safeInt64(a) ^ safeInt64(b)) }
-	CalcEnv["bnot"] = func(a float64) float64 { return float64(^safeInt64(a)) }
-	CalcEnv["blshift"] = func(a, b float64) float64 {
-		shift := safeInt64(b)
-		if shift < 0 || shift >= 64 {
-			return 0
-		}
-		return float64(safeInt64(a) << uint(shift))
+	// Bitwise functions accept interface{} so that format-function outputs (strings)
+	// compose naturally: "bin32(x) & 0xFF" and "hex(a) | hex(b)" both work.
+	// CoerceToFloat handles float64 pass-through and string parsing via ParseResultString.
+	CalcEnv["band"] = func(a, b interface{}) float64 {
+		return float64(safeInt64(CoerceToFloat(a)) & safeInt64(CoerceToFloat(b)))
 	}
-	CalcEnv["brshift"] = func(a, b float64) float64 {
-		shift := safeInt64(b)
+	CalcEnv["bor"] = func(a, b interface{}) float64 {
+		return float64(safeInt64(CoerceToFloat(a)) | safeInt64(CoerceToFloat(b)))
+	}
+	CalcEnv["bxor"] = func(a, b interface{}) float64 {
+		return float64(safeInt64(CoerceToFloat(a)) ^ safeInt64(CoerceToFloat(b)))
+	}
+	CalcEnv["bnot"] = func(a interface{}) float64 {
+		return float64(^safeInt64(CoerceToFloat(a)))
+	}
+	CalcEnv["blshift"] = func(a, b interface{}) float64 {
+		shift := safeInt64(CoerceToFloat(b))
 		if shift < 0 || shift >= 64 {
 			return 0
 		}
-		return float64(safeInt64(a) >> uint(shift))
+		return float64(safeInt64(CoerceToFloat(a)) << uint(shift))
+	}
+	CalcEnv["brshift"] = func(a, b interface{}) float64 {
+		shift := safeInt64(CoerceToFloat(b))
+		if shift < 0 || shift >= 64 {
+			return 0
+		}
+		return float64(safeInt64(CoerceToFloat(a)) >> uint(shift))
 	}
 
 	// Integer cast functions: u8/s8 … u128/s128.

@@ -470,3 +470,40 @@ func TestEval_NotOfShift(t *testing.T) {
 	// ~(1 << 4) clears bit 4: ~16 = -17
 	near(t, eval(t, "~(1 << 4)"), -17, "~(1<<4)")
 }
+
+// ── Format functions compose with bitwise ops ─────────────────────────────────
+// These previously failed with a type error because band/bor/etc expected float64
+// but hex/bin/oct/bin32/etc return strings. Now CoerceToFloat handles the coercion.
+
+func TestEval_FormatFn_AndWithHex(t *testing.T) {
+	// hex(255) & 0x0F — hex() returns string, band() must coerce it
+	near(t, eval(t, "hex(255) & 0x0F"), 15, "hex(255) & 0x0F")
+}
+
+func TestEval_FormatFn_AndWithBin(t *testing.T) {
+	// bin(0b10101010) & bin(0b11110000)
+	near(t, eval(t, "bin(0b10101010) & bin(0b11110000)"), float64(0b10100000), "bin(A) & bin(B)")
+}
+
+func TestEval_FormatFn_OrWithHex(t *testing.T) {
+	near(t, eval(t, "hex(0x0F) | hex(0xF0)"), 0xFF, "hex(0x0F) | hex(0xF0)")
+}
+
+func TestEval_FormatFn_XorWithHex(t *testing.T) {
+	near(t, eval(t, "hex(0xFF) ^ hex(0x0F)"), 0xF0, "hex(0xFF) ^ hex(0x0F)")
+}
+
+func TestEval_FormatFn_NotBin32(t *testing.T) {
+	// ~bin32(0) = ^0 = -1 (all bits set in int64)
+	near(t, eval(t, "~bin32(0)"), -1, "~bin32(0)")
+}
+
+func TestEval_FormatFn_ShiftWithHex(t *testing.T) {
+	near(t, eval(t, "hex(1) << 4"), 16, "hex(1) << 4")
+}
+
+func TestEval_FormatFn_Bin64AndSmall(t *testing.T) {
+	// bin64(-129) & bin64(100) — the user's original failing expression.
+	// -129 & 100 = 100 (since 100's bits are all within -129's set bits).
+	near(t, eval(t, "bin64(-129) & bin64(100)"), 100, "bin64(-129) & bin64(100)")
+}
