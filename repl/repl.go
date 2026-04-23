@@ -169,16 +169,19 @@ func Run() {
 		sort.Strings(keys)
 
 		if engine.ReadAutoload() {
-			// User previously chose "always load" — load silently.
+			// Autoload set — load silently, no prompt.
 			engine.ApplySavedVars(saved.Vars)
 			validTokens = engine.GetValidTokens()
 			fmt.Println()
-			fmt.Printf("  loaded %d variable(s)  %s\n",
-				len(saved.Vars), dimGray("(type 'vars' to list — 'del <name>' to remove)"))
+			fmt.Printf("  %s  %d variable(s) loaded  %s\n",
+				boldWhite("↑"),
+				len(saved.Vars),
+				dimGray("(vars · del <name>)"),
+			)
 			fmt.Println()
 		} else {
 			fmt.Println()
-			fmt.Printf("  %d saved variable(s):\n", len(saved.Vars))
+			fmt.Printf("  %s  %d saved variable(s)\n", boldWhite("→"), len(saved.Vars))
 			for _, k := range keys {
 				fmt.Printf("    %s  =  %s\n",
 					styleVarName(fmt.Sprintf("%-12s", k)),
@@ -186,25 +189,26 @@ func Run() {
 				)
 			}
 			fmt.Println()
-			fmt.Println("  [L] Load   [A] Always load   [S] Skip (keep saved)   [D] Delete and start fresh")
+			fmt.Println("  Enter  load & remember    s  this session only    d  delete")
 			fmt.Println()
 
 			choice, _ := line.Prompt("> ")
 			switch strings.ToLower(strings.TrimSpace(choice)) {
-			case "a", "always":
+			case "d", "delete":
+				engine.DeletePersistedVars()
+				fmt.Println("  variables deleted")
+			case "s", "session":
+				// Load for this session only — no autoload set.
+				engine.ApplySavedVars(saved.Vars)
+				validTokens = engine.GetValidTokens()
+				fmt.Printf("  loaded for this session\n")
+			default:
+				// Empty input (Enter) or anything else = load + set autoload.
 				engine.ApplySavedVars(saved.Vars)
 				validTokens = engine.GetValidTokens()
 				engine.SetAutoload(true)
-				fmt.Printf("  loaded %d variable(s) — will autoload from now on\n", len(saved.Vars))
-			case "l", "load":
-				engine.ApplySavedVars(saved.Vars)
-				validTokens = engine.GetValidTokens()
-				fmt.Printf("  loaded %d variable(s)\n", len(saved.Vars))
-			case "d", "delete":
-				engine.DeletePersistedVars()
-				fmt.Println("  saved variables deleted")
-			default:
-				fmt.Println("  skipped (file kept)")
+				fmt.Printf("  loaded — will autoload from now on  %s\n",
+					dimGray("(change: del all vars or edit ~/.wrkr_config.json)"))
 			}
 			fmt.Println()
 		}
