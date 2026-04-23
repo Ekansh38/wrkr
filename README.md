@@ -393,6 +393,39 @@ help all
 
 ---
 
+## Drill mode
+
+Practice binary/hex/decimal conversions interactively.
+
+```
+drill
+```
+
+Prompts for a mode and target base, then runs you through conversions until you type `q`.
+
+**Modes:**
+
+| # | Mode | Range | Purpose |
+|---|------|-------|---------|
+| 1 | nibble | 0–15 | Master the 16 core hex facts first |
+| 2 | powers | 2^0–2^15 | Essential for fast decomposition |
+| 3 | byte | 0–255 | Full 8-bit range |
+| 4 | random | mix | All three modes combined |
+
+**Convert to:** `h` hex · `b` bin · `d` dec
+
+**Accepted answer formats:**
+
+- hex: `0xF` or bare with a-f letter (`F`, `b4`) 
+- bin: `0b1010` (prefix required)
+- dec: plain digits (`15`, `255`)
+
+Typing the wrong base is marked wrong — the point is to actually do the conversion.
+
+**Recommended progression:** nibble → hex until instant, then powers → bin, then byte → hex.
+
+---
+
 ## Use cases
 
 A sample of real workflows to try. Each block is independent.

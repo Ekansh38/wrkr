@@ -4,15 +4,18 @@ import (
 	"bytes"
 	"fmt"
 	"io"
+	"math/rand"
 	"os"
 	"os/exec"
 	"sort"
 	"strings"
+	"time"
 
 	"github.com/atotto/clipboard"
 	"github.com/expr-lang/expr"
 	"github.com/peterh/liner"
 
+	"github.com/Ekansh38/wrkr/drill"
 	"github.com/Ekansh38/wrkr/engine"
 )
 
@@ -203,6 +206,8 @@ func printHelp(topic string) {
 		fmt.Println("help vars      variables")
 		fmt.Println("help settings  clipboard and other settings")
 		fmt.Println("help all       everything")
+		fmt.Println()
+		fmt.Println("drill          binary/hex/decimal conversion practice")
 	}
 }
 
@@ -236,6 +241,82 @@ func openInEditor(initial string) (string, error) {
 		return "", err
 	}
 	return strings.TrimSpace(string(data)), nil
+}
+
+// runDrill runs an interactive drill session using the existing liner instance.
+func runDrill(line *liner.State) {
+	fmt.Println()
+	fmt.Println("  Mode:")
+	fmt.Println("    1) nibble  (0–15)     learn the 16 core facts")
+	fmt.Println("    2) powers  (2^0–2^15) essential decomposition")
+	fmt.Println("    3) byte    (0–255)    full 8-bit range")
+	fmt.Println("    4) random  mix of all three")
+	fmt.Println()
+	fmt.Println("  Convert to:")
+	fmt.Println("    h) hex    b) bin    d) dec")
+	fmt.Println()
+	fmt.Println("  q to quit at any time")
+	fmt.Println()
+
+	modeRaw, err := line.Prompt("  mode [1-4]: ")
+	if err != nil || strings.ToLower(strings.TrimSpace(modeRaw)) == "q" {
+		fmt.Println()
+		return
+	}
+	convRaw, err := line.Prompt("  to [h/b/d]: ")
+	if err != nil || strings.ToLower(strings.TrimSpace(convRaw)) == "q" {
+		fmt.Println()
+		return
+	}
+
+	var mode drill.Mode
+	switch strings.TrimSpace(modeRaw) {
+	case "1":
+		mode = drill.ModeNibble
+	case "2":
+		mode = drill.ModePowers
+	case "3":
+		mode = drill.ModeByte
+	case "4":
+		mode = drill.ModeRandom
+	default:
+		fmt.Println(styleError("  invalid mode — enter 1, 2, 3, or 4"))
+		fmt.Println()
+		return
+	}
+
+	var conv drill.Conv
+	switch strings.ToLower(strings.TrimSpace(convRaw)) {
+	case "h", "hex":
+		conv = drill.ConvToHex
+	case "b", "bin":
+		conv = drill.ConvToBin
+	case "d", "dec":
+		conv = drill.ConvToDec
+	default:
+		fmt.Println(styleError("  invalid conversion — enter h, b, or d"))
+		fmt.Println()
+		return
+	}
+
+	rng := rand.New(rand.NewSource(time.Now().UnixNano()))
+	fmt.Println()
+
+	for {
+		q := drill.Generate(mode, conv, rng)
+		ans, err := line.Prompt("  " + q.Prompt())
+		ans = strings.TrimSpace(ans)
+		if err != nil || strings.ToLower(ans) == "q" {
+			fmt.Println()
+			break
+		}
+		if q.Check(ans) {
+			fmt.Println(boldWhite("  ✓"))
+		} else {
+			fmt.Printf("  %s  %s\n", styleError("✗"), dimGray("→ "+q.CorrectAnswer()))
+		}
+		fmt.Println()
+	}
 }
 
 // Run starts the interactive REPL.
@@ -278,7 +359,7 @@ func Run() {
 				}
 				candidates = append([]string{
 					"help", "mode", "type", "setting", "vars", "del", "debug",
-					"exit", "quit", "clear", ":e", ":q",
+					"drill", "exit", "quit", "clear", ":e", ":q",
 				}, engine.GetCompletionTokens()...)
 			} else {
 				cmd := fields[0]
@@ -909,6 +990,12 @@ func Run() {
 			default:
 				fmt.Println(styleError("unknown setting. try: setting clipboard / grouping / prefix"))
 			}
+			continue
+		}
+
+		// Drill mode.
+		if lowerInput == "drill" {
+			runDrill(line)
 			continue
 		}
 
