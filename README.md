@@ -390,3 +390,180 @@ help vars
 help settings
 help all
 ```
+
+---
+
+## Use cases
+
+A sample of real workflows to try. Each block is independent.
+
+### Filesystem math
+
+```
+# How many 4 KB blocks fit on a 2 TB drive?
+2 tb / (4 * kb)                 -> 536870912
+
+# Journal size in blocks (128 MB journal, 4 KB blocks)
+block = 4096
+journal = 128 * mb
+journal / block                 -> 32768
+
+# B-tree depth for 1 billion records, 4 KB node, 8-byte keys
+floor(log(1e9) / log(4096 / 8))  -> 3
+
+# Inode table: 1 inode per 16 KB on a 1 TB filesystem
+1 tb / (16 * kb)                -> 67108864
+```
+
+### Bitwise and registers
+
+```
+# Extract the high nibble of 0xAB
+(0xAB >> 4) & 0xF               -> 10
+
+# Pack two bytes into a 16-bit value
+(0xAB << 8) | 0xCD              -> 0xABCD (in hex mode)
+
+# Page-align an address to a 4 KB boundary
+addr = 0x1234_5678
+addr & ~(4096 - 1)              -> 0x12345000
+
+# Clear bit 3, set bit 7
+reg = 0b0001_1010
+(reg & ~(1 << 3)) | (1 << 7)   -> 0b10010010
+
+# Extract bits [5:3] from a value
+val = 0b10110100
+(val >> 3) & 7                  -> 6
+
+# Check if a number is a power of 2 (result 0 = yes)
+x = 256
+x & (x - 1)                    -> 0
+```
+
+### Signed/unsigned interpretation
+
+```
+# What does 0xFFFB mean as a signed 16-bit integer?
+0xFFFB to s16                   -> -5
+
+# ADC returns 0xF6. Interpret as signed temperature.
+0xF6 to s8                      -> -10
+
+# -1 as an unsigned 16-bit port number
+-1 to u16                       -> 65535
+
+# Full 32-bit two's complement view of -129
+type s32
+mode bin32
+-129                            -> 0b11111111111111111111111101111111  [Bin32]  [s32]
+```
+
+### Base conversion workflows
+
+```
+# Convert a hex colour to decimal channels
+r = 0xDE
+g = 0xAD
+b = 0xBE
+r                               -> 222
+g                               -> 173
+
+# Decimal to binary with grouping
+255 to bin                      -> 0b1111_1111
+
+# See IPv4 subnet mask in binary
+0xFFFFFF00 to bin32             -> 0b11111111_11111111_11111111_00000000
+
+# How many hosts in a /26?
+pow(2, 32 - 26) - 2             -> 62
+```
+
+### Chained calculations with `_`
+
+```
+# Transfer time for 1 GB at 100 Mbps — in hours
+1 gb * 8                        # bits
+_ / (100 * 1e6)                 # seconds at 100 Mbps
+_ / 3600                        -> ~0.02388 hours (~86 seconds)
+
+# Cost of a 512 MB allocation at $0.023/GB-month
+512 * mb / gb * 0.023           -> 0.01175 ($/month)
+```
+
+### Bitwise with format functions
+
+```
+# bin64 and hex64 compose directly with bitwise operators
+bin64(-1) & bin64(0xFF)         -> 255
+hex64(0xDEAD_BEEF) | hex64(0x0000_1111)  -> 0xDEADBFFF (in hex mode)
+
+# Strip/extract using width-specific output and arithmetic
+mode hex32
+~0 & ~0xFF                      -> 0xFFFFFF00   (all bits except low byte)
+(0xABCD_1234 >> 16) & 0xFFFF    -> 0xABCD       (high word)
+```
+
+### Type mode: simulating C integer overflow
+
+```
+type u8
+200 + 100                       -> 44  [u8 ovf]    (wraps at 256)
+
+type s8
+127 + 1                         -> -128  [s8 ovf]  (wraps to min)
+
+# Safe: cast only the value you want to clamp
+u8(200 + 100)                   -> 44   (explicit, no global type mode)
+```
+
+---
+
+## Limitations
+
+### Float64 precision
+All values are IEEE 754 float64 (~15–16 significant decimal digits). Integers above ~2^53 (9 quadrillion) lose precision.
+
+**Workaround:** stay within int64 range for bit manipulation; use the `to s64`/`to u64` casts to clamp.
+
+---
+
+### Format functions in arithmetic lose their display hint
+`hex(a) + hex(b)` evaluates correctly (values are extracted, arithmetic runs) but the result displays in the current output mode — the hex wrapping is stripped.
+
+**Workaround:** wrap the whole expression: `hex(a + b)`. Or switch mode: `mode hex`, then `a + b`.
+
+---
+
+### `to format` only works on simple left-hand values
+`(a + b) to hex` does not work. `to` matches a single number, identifier, or function call on the left.
+
+**Workaround:** `hex(a + b)` or `_ to hex` after storing the result.
+
+---
+
+### Bitwise operates on int64
+`~`, `&`, `|`, `^`, `<<`, `>>` truncate values to 64-bit signed integers. Numbers outside [-2^63, 2^63−1] clamp to the boundary.
+
+**Workaround:** `u128`/`s128` cast functions for extra-wide arithmetic — though bitwise on those isn't supported, just value range.
+
+---
+
+### Width-specific format functions in bitwise are 64-bit-context values
+`hex16(-1)` = `"0xFFFF"` = 65535 (positive) in a 64-bit expression. Only `hex64`/`bin64` produce strings that round-trip to -1 via two's complement.
+
+**Workaround:** use `hex64`/`bin64` when you need signed 64-bit two's complement in bitwise expressions. For narrower math, use the cast functions: `s16(-1) & x`.
+
+---
+
+### Fractional parts are truncated in base output
+`hex(1.5)` = `0x1`. Base format functions (`hex`, `bin`, `oct` and width variants) truncate to integer.
+
+**Workaround:** `round(x)` or `floor(x)` before formatting if the fractional part matters.
+
+---
+
+### No multi-line expressions in the prompt
+The REPL evaluates one expression per line.
+
+**Workaround:** `:e` opens `$EDITOR` with a temp file — write multiple lines, each runs in sequence, variables persist across lines.
