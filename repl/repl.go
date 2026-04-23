@@ -352,14 +352,12 @@ func runDrill(line *liner.State) {
 	for {
 		q := drill.Generate(mode, conv, rng)
 
-		// Print the colored question with fmt (liner can't handle ANSI codes in
-		// its prompt string — it miscounts width and may return an immediate error).
-		fmt.Printf("  %s  →  %s  ",
-			drillColorValue(q.From),
-			drillColorBase(q.ToBase),
-		)
+		// Question on its own line — liner needs a clean line for its prompt so
+		// that backspace/editing redraws correctly. Mixing fmt.Print + line.Prompt("")
+		// on the same line causes liner to redraw from col 0 and wipe the question.
+		fmt.Printf("  %s  →  %s\n", drillColorValue(q.From), drillColorBase(q.ToBase))
 
-		ans, err := line.Prompt("")
+		ans, err := line.Prompt("  > ")
 		ans = strings.TrimSpace(ans)
 		if err != nil || drillQuit(ans) {
 			fmt.Println()
@@ -381,16 +379,17 @@ func runDrill(line *liner.State) {
 			prevStreak := streak
 			streak = 0
 			nWrong++
+			// Don't nest drillColorValue inside dimGray — the outer gray kills the base color.
 			if prevStreak > 1 {
 				fmt.Printf("  %s  %s  %s\n\n",
 					styleError("✗"),
-					dimGray("→ "+drillColorValue(q.CorrectAnswer())),
+					drillColorValue(q.CorrectAnswer()),
 					dimGray(fmt.Sprintf("(lost %d)", prevStreak)),
 				)
 			} else {
 				fmt.Printf("  %s  %s\n\n",
 					styleError("✗"),
-					dimGray("→ "+drillColorValue(q.CorrectAnswer())),
+					drillColorValue(q.CorrectAnswer()),
 				)
 			}
 		}
