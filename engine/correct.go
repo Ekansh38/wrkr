@@ -27,7 +27,7 @@ func FindClosestMatch(input string, validOptions []string) string {
 			minDist, bestMatch = dist, option
 		}
 	}
-	if minDist > (len(input)/2)+1 {
+	if minDist > (len(input)/4)+1 {
 		return input
 	}
 	return bestMatch
