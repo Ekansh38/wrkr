@@ -92,7 +92,7 @@ dec mode adds a size hint `[1 MB]` when the expression involves a data unit. Sup
 
 ## Two's complement
 
-`hex`/`bin`/`oct` show signed output: `-5` → `-0x5`. For the actual bit pattern use the width-specific forms.
+`hex`/`bin`/`oct` show signed output: `-5` -> `-0x5`. For the actual bit pattern use the width-specific forms.
 
 | width | bin | hex | oct |
 |-------|-----|-----|-----|
@@ -137,7 +137,7 @@ Standard C bitwise operators, with standard C precedence.
 | `a << n` | left shift | `1 << 8` | `256` |
 | `a >> n` | right shift | `256 >> 4` | `16` |
 
-Precedence (high → low): `~`, `* / + -`, `<< >>`, `&`, `^`, `|` — matching C.  
+Precedence (high -> low): `~`, `* / + -`, `<< >>`, `&`, `^`, `|` — matching C.  
 `>>` is arithmetic (sign-preserving). `&&` and `||` (logical) are passed through unchanged.
 
 ```

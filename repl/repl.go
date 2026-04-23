@@ -167,7 +167,9 @@ func printHelp(topic string) {
 		fmt.Println("help systems   base literals and conversion")
 		fmt.Println("help units     unit conversion")
 		fmt.Println("help modes     output modes")
+		fmt.Println("help types     integer type modes (u8, s16, ...)")
 		fmt.Println("help vars      variables")
+		fmt.Println("help settings  clipboard and other settings")
 		fmt.Println("help all       everything")
 	}
 }
@@ -216,6 +218,7 @@ func Run() {
 		line = liner.NewLiner()
 		line.SetCtrlCAborts(true)
 		line.SetCompleter(func(input string) []string {
+			// Split into the already-typed prefix and the token being completed.
 			lastBoundary := strings.LastIndexAny(input, " \t(,+-*/^%")
 			prefix := input
 			before := ""
@@ -223,15 +226,87 @@ func Run() {
 				before = input[:lastBoundary+1]
 				prefix = input[lastBoundary+1:]
 			}
-			if prefix == "" {
+			lp := strings.ToLower(prefix)
+
+			// How many whitespace-separated words are fully typed before the
+			// current token?  This drives context-aware completions.
+			fields := strings.Fields(strings.ToLower(input))
+			numCompleted := len(fields)
+			if len(fields) > 0 && !strings.HasSuffix(input, " ") {
+				numCompleted-- // last field is still being typed
+			}
+
+			var candidates []string
+			commandContext := false // allow empty-prefix completions in command positions
+
+			if numCompleted == 0 {
+				// Completing the first word: commands + expression tokens.
+				if prefix == "" {
+					return nil
+				}
+				candidates = append([]string{
+					"help", "mode", "type", "setting", "vars", "del", "debug",
+					"exit", "quit", "clear", ":e", ":q",
+				}, engine.GetValidTokens()...)
+			} else {
+				cmd := fields[0]
+				switch cmd {
+				case "mode":
+					commandContext = true
+					if numCompleted == 1 {
+						for k := range engine.ModeMap {
+							candidates = append(candidates, k)
+						}
+					}
+				case "type":
+					commandContext = true
+					if numCompleted == 1 {
+						for k := range engine.TypeModeMap {
+							candidates = append(candidates, k)
+						}
+					}
+				case "setting":
+					commandContext = true
+					switch numCompleted {
+					case 1:
+						candidates = []string{"clipboard"}
+					case 2:
+						if len(fields) >= 2 && fields[1] == "clipboard" {
+							candidates = []string{"on", "off"}
+						}
+					}
+				case "help":
+					commandContext = true
+					if numCompleted == 1 {
+						candidates = []string{
+							"math", "systems", "units", "modes", "types",
+							"vars", "settings", "all",
+						}
+					}
+				case "del":
+					commandContext = true
+					if numCompleted == 1 {
+						for k := range engine.UserVars {
+							candidates = append(candidates, k)
+						}
+					}
+				default:
+					// Expression context: only complete non-empty prefixes.
+					if prefix == "" {
+						return nil
+					}
+					candidates = engine.GetValidTokens()
+				}
+			}
+
+			if !commandContext && prefix == "" {
 				return nil
 			}
-			lp := strings.ToLower(prefix)
-			tokens := engine.GetValidTokens()
+
 			var out []string
-			for _, tok := range tokens {
-				if strings.HasPrefix(strings.ToLower(tok), lp) && strings.ToLower(tok) != lp {
-					out = append(out, before+tok)
+			for _, c := range candidates {
+				if strings.HasPrefix(strings.ToLower(c), lp) && strings.ToLower(c) != lp {
+					out = append(out, before+c)
 				}
 			}
 			sort.Strings(out)
@@ -618,6 +693,14 @@ func Run() {
 			if _, reserved := engine.ModeMap[strings.ToLower(varName)]; reserved {
 				fmt.Println(styleError("error: '" + varName + "' is a reserved mode keyword"))
 				continue
+			}
+			// Guard against overwriting builtin CalcEnv names (units, cast functions,
+			// math functions, etc.). Allow re-assignment of names the user already set.
+			if _, isBuiltin := engine.CalcEnv[varName]; isBuiltin {
+				if _, isUserVar := engine.UserVars[varName]; !isUserVar {
+					fmt.Println(styleError("error: '" + varName + "' is a reserved name"))
+					continue
+				}
 			}
 
 			cleaned := engine.FixBaseTypos(exprStr)
