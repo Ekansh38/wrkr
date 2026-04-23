@@ -38,6 +38,7 @@ func printHelp(topic string) {
 		fmt.Println("    0xFF  0b1010  0o17           prefix")
 		fmt.Println("    FF hex  101 bin  17 octal    natural (suffix = base of digits)")
 		fmt.Println("    \\xFF  \\b1010  \\o17           typo shorthand")
+		fmt.Println("    1_000_000  0b1011_1011        _ separators stripped before eval")
 		fmt.Println()
 		fmt.Println("  output:")
 		fmt.Println("    hex(255)  bin(255)  octal(255)  dec(0xFF)    function")
