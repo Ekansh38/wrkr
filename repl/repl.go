@@ -196,11 +196,13 @@ func Run() {
 			engine.ApplySavedVars(saved.Vars)
 			validTokens = engine.GetValidTokens()
 			fmt.Println()
-			fmt.Printf("  %s  %d variable(s) loaded  %s\n",
-				boldWhite("^"),
-				len(saved.Vars),
-				dimGray("(vars / del <name>)"),
-			)
+			fmt.Printf("  %d variable(s) loaded\n", len(saved.Vars))
+			for _, k := range keys {
+				fmt.Printf("    %s  =  %s\n",
+					styleVarName(fmt.Sprintf("%-12s", k)),
+					boldWhite(engine.FormatDecimal(saved.Vars[k])),
+				)
+			}
 			fmt.Println()
 		} else {
 			fmt.Println()
