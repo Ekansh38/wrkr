@@ -163,6 +163,21 @@ func TestBaseConv_AllFormsEquivalent(t *testing.T) {
 	}
 }
 
+func TestBaseConv_FuncCall_ToDec(t *testing.T) {
+	// "s16(0b1000010001000100) to dec" must not error — funcCallPat in lhsPat covers this.
+	got := evalStr(t, "s16(0b1000010001000100) to dec")
+	if got != "-31676" {
+		t.Errorf("s16(...) to dec: got %q, want -31676", got)
+	}
+}
+
+func TestBaseConv_FuncCall_ToHex(t *testing.T) {
+	got := evalStr(t, "s32(255) to hex")
+	if got != "0xFF" {
+		t.Errorf("s32(...) to hex: got %q, want 0xFF", got)
+	}
+}
+
 // Unit conversions that contain "to bin/hex" in the target must still work.
 // Regression: FixNakedBases used to eat "to bits" → "0bto" style corruption.
 func TestPipeline_UnitConv_ToBits_NotCorrupted(t *testing.T) {

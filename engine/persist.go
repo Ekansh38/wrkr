@@ -30,7 +30,7 @@ type wrkrConfig struct {
 	GroupingDisplay  *bool  `json:"grouping_display,omitempty"`   // nil = unset → default on
 	GroupingClipboard *bool `json:"grouping_clipboard,omitempty"` // nil = unset → default off
 	PrefixDisplay    *bool  `json:"prefix_display,omitempty"`     // nil = unset → default on
-	PrefixClipboard  *bool  `json:"prefix_clipboard,omitempty"`   // nil = unset → default off
+	PrefixClipboard  *bool  `json:"prefix_clipboard,omitempty"`   // nil = unset → default on
 }
 
 // ReadAppConfig reads ~/.wrkr_config.json and returns the parsed config.

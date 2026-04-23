@@ -150,9 +150,11 @@ func ProcessFormatting(input string) string {
 	})
 
 	// Pattern 2 (two-token): "(value) to (format)" → "format(value)"
-	// value = numeric literal OR identifier (covers _ to dec, block to hex, pi to bin, etc.)
+	// value = numeric literal, identifier, or a function call (one level of nesting).
+	// The function call arm handles "s32(expr) to dec", "u8(0xFF) to bin", etc.
 	identPat := `[a-zA-Z_][a-zA-Z0-9_]*`
-	lhsPat := `(?:[-+]?` + numPat + `|` + identPat + `)`
+	funcCallPat := `[a-zA-Z_][a-zA-Z0-9_]*\((?:[^()]*|\([^()]*\))*\)`
+	lhsPat := `(?:` + funcCallPat + `|[-+]?` + numPat + `|` + identPat + `)`
 	re2 := regexp.MustCompile(`(?i)(` + lhsPat + `)\s+to\s+(` + fmtAlt + `)`)
 	input = re2.ReplaceAllStringFunc(input, func(match string) string {
 		parts := re2.FindStringSubmatch(match)

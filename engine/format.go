@@ -20,7 +20,7 @@ var CurrentMode = "dec"
 var GroupingDisplay = true
 var GroupingClipboard = false
 var PrefixDisplay = true
-var PrefixClipboard = false
+var PrefixClipboard = true
 
 // ModeMap normalises user input to a canonical mode name.
 // Used when the user types "mode <X>" explicitly.
