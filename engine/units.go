@@ -17,6 +17,7 @@ var SizeUnitAliases = map[string]bool{}
 
 // CalcEnv is the expression-evaluation environment: math functions, constants, units.
 var CalcEnv = map[string]interface{}{
+	"_": float64(0), // last result; seeded so expr.Compile always finds it
 	// Trig / geometry
 	"sin":   math.Sin,
 	"cos":   math.Cos,

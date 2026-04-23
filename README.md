@@ -92,7 +92,9 @@ dec mode adds a size hint `[1 MB]` when the expression involves a data unit. Sup
 
 ## Variables
 
-Saved to `~/.wrkr_vars.json`. Offered for reload on next launch.
+Saved to `~/.wrkr_vars.json`. Autoload preference in `~/.wrkr_config.json`.
+On next launch: prompted to load, skip, or delete.
+Choosing load sets autoload; subsequent launches restore silently.
 
 ```
 block = 4096
@@ -104,6 +106,13 @@ vars              list
 del block         remove
 ```
 
+`_` holds the last numeric result.
+
+```
+100 tb / (2 mb / 5)
+_ / 60 / 60 / 24
+```
+
 ## Math
 
 ```
@@ -112,15 +121,43 @@ sin  cos  tan  hypot  sqrt  abs  log  log2  log10  pow  round  floor  ceil  pi
 
 ## Autocorrect
 
-Levenshtein match on unknown tokens. Suggestion only shown if the corrected expression compiles cleanly. Silent otherwise.
+Levenshtein match on unknown tokens. Suggestion only shown if the corrected expression compiles and produces a non-function result. Silent otherwise.
+
+## Editor mode
+
+`:e` opens `$EDITOR` (falls back to `vi`) with a temp file. Each non-empty line
+runs as a separate command in sequence. Variables set on one line are available
+to the next. Lines starting with `#` are ignored.
+
+```
+# in editor:
+block = 4096
+journal = 128 * mb
+journal / block
+```
+
+Reopening `:e` pre-populates the file with your last session's content.
+All lines are added to history individually.
 
 ## Debug
 
 ```
-debug <expr>    show every pipeline stage and final result
+debug <expr>
 ```
 
-Useful when a conversion doesn't produce what you expect.
+Shows only the pipeline stages that changed, plus an `expanded` step with all
+unit names and variables substituted for their numeric values (what the
+evaluator actually computes).
+
+```
+debug (3 * tb) / 3 mb * 1000
+
+  input        (3 * tb) / 3 mb * 1000
+  multiply  -> (3 * tb) / (3 * mb) * 1000
+  expanded  -> (3 * 1099511627776) / (3 * 1048576) * 1000
+
+  result       1048576000
+```
 
 ## Install
 
