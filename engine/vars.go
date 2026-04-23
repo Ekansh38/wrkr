@@ -27,6 +27,17 @@ func StoreVar(name string, val float64) {
 	CalcEnv[name] = val
 }
 
+// DeleteVar removes a user-defined variable from both UserVars and CalcEnv.
+// Returns false if the name was not a user variable.
+func DeleteVar(name string) bool {
+	if _, exists := UserVars[name]; !exists {
+		return false
+	}
+	delete(UserVars, name)
+	delete(CalcEnv, name)
+	return true
+}
+
 // GetMergedEnv returns a fresh map combining CalcEnv and UserVars.
 // Always call this immediately before Compile/Run so new variables are visible.
 func GetMergedEnv() map[string]interface{} {

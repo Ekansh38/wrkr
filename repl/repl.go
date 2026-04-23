@@ -51,6 +51,7 @@ func printHelp(topic string) {
 		fmt.Println("         page  = 4 * kb")
 		fmt.Println("Use:     (512 * mb) / block")
 		fmt.Println("List:    vars")
+		fmt.Println("Delete:  del block")
 		fmt.Println("Note:    variables persist for the life of the process.")
 	case "all":
 		printHelp("math")
@@ -128,6 +129,19 @@ func Run() {
 						boldWhite(engine.FormatDecimal(v.(float64))),
 					)
 				}
+			}
+			continue
+		}
+
+		// Delete a user-defined variable.
+		if strings.HasPrefix(lowerInput, "del ") {
+			varName := strings.TrimSpace(rawInput[4:])
+			if engine.DeleteVar(varName) {
+				validTokens = engine.GetValidTokens()
+				fmt.Printf("deleted %s\n", styleVarName(varName))
+			} else {
+				fmt.Printf("%s  (not a user variable — use 'vars' to list)\n",
+					styleError("unknown: "+varName))
 			}
 			continue
 		}

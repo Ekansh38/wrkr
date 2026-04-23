@@ -18,8 +18,8 @@ var ModeMap = map[string]string{
 	"oct": "oct", "octal": "oct",
 	"dec": "dec", "decimal": "dec",
 	"size": "size",
-	"bytes": "bytes", "byte": "bytes",
-	"bits": "bits", "bit": "bits",
+	"bytes": "bytes",
+	"bits": "bits",
 }
 
 // FormatDecimal formats a float64 as a clean decimal string (no trailing zeros).

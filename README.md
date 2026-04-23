@@ -87,9 +87,9 @@ Variables persist for the life of the process.
 block = 4096
 journal = 128 * mb
 journal / block
+vars            list all variables
+del block       remove a variable
 ```
-
-Type "vars" to list everything stored.
 
 **Math functions**
 
@@ -180,6 +180,12 @@ GOOS=windows GOARCH=amd64 go build -o wrkr-windows-amd64.exe .
 ```
 
 To create a GitHub release with pre-built binaries for all platforms, the standard Go tool is GoReleaser (goreleaser.com). You give it a config file and it cross-compiles, archives, checksums, and uploads everything to a GitHub release in one command. Most Go CLI projects use it. That is not set up here yet.
+
+---
+
+## Float precision
+
+All values are IEEE 754 float64, which gives ~15-16 significant digits. Output is displayed at 12 decimal places to suppress representation noise. Without this cap, `1 mi to km` would show `1.60934400000000005` instead of `1.609344`. If you need more than 12 decimal places of precision, this tool is the wrong choice.
 
 ---
 
