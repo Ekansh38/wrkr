@@ -36,21 +36,21 @@ var (
 
 // colorizeResult applies colors to a formatted result string:
 //
-//   - 0x… cyan   0b… green   0o… yellow
+//   - 0x… / -0x… cyan   0b… / -0b… green   0o… / -0o… yellow
 //   - "number  [hint]"  →  bold number  +  dim bracket
 //   - "number unit"     →  bold number  +  dim unit label  (size/bytes/bits modes)
 //   - plain number      →  bold
 func colorizeResult(s string) string {
 	low := strings.ToLower(s)
 
-	// Base-prefixed outputs.
-	if strings.HasPrefix(low, "0x") {
+	// Base-prefixed outputs — match both positive (0x…) and negative (-0x…).
+	if strings.HasPrefix(low, "0x") || strings.HasPrefix(low, "-0x") {
 		return applyBaseColor(s, styleHex)
 	}
-	if strings.HasPrefix(s, "0b") {
+	if strings.HasPrefix(low, "0b") || strings.HasPrefix(low, "-0b") {
 		return applyBaseColor(s, styleBin)
 	}
-	if strings.HasPrefix(s, "0o") {
+	if strings.HasPrefix(low, "0o") || strings.HasPrefix(low, "-0o") {
 		return applyBaseColor(s, styleOct)
 	}
 
@@ -79,10 +79,17 @@ func applyBaseColor(s string, styleFn func(...interface{}) string) string {
 }
 
 // colorMode returns the mode name colored in its associated color.
+// Width-suffixed modes (bin32, hex64, oct8, …) inherit their base color.
 func colorMode(mode string) string {
-	fn, ok := modeColor[mode]
-	if !ok {
-		return styleModeLabel(mode)
+	if fn, ok := modeColor[mode]; ok {
+		return fn(mode)
 	}
-	return fn(mode)
+	for _, base := range []string{"bin", "hex", "oct"} {
+		if strings.HasPrefix(mode, base) {
+			if fn, ok := modeColor[base]; ok {
+				return fn(mode)
+			}
+		}
+	}
+	return styleModeLabel(mode)
 }

@@ -20,8 +20,9 @@ Raw input goes through these stages before hitting the evaluator:
 3. base conversion        0x123 hex to bin -> bin(0x123)
 4. unit conversion        50 mi to km -> (50 * (1609.344 / 1000))
 5. implicit multiply      5 mb -> (5 * 1048576)
-6. base translation       0xFF -> 255.000000
-7. AST eval               expr-lang/expr, proper operator precedence
+6. bitwise rewrite        a & b -> band(a, b), ~x -> bnot(x)
+7. base translation       0xFF -> 255.000000
+8. AST eval               expr-lang/expr, proper operator precedence
 ```
 
 All values are float64 internally. Units are multipliers against a baseline (bytes for data, meters for distance).
