@@ -110,7 +110,7 @@ func parseAnswerInBase(s, base string) (int, bool) {
 	switch base {
 	case "bin":
 		raw := low
-		if strings.HasPrefix(raw, "0b") {
+		if strings.HasPrefix(raw, "0b") || strings.HasPrefix(raw, `\b`) {
 			raw = raw[2:]
 		}
 		v, err := strconv.ParseInt(raw, 2, 64)
@@ -148,7 +148,7 @@ func matchesBase(answer, base string) bool {
 		}
 		return false
 	case "bin":
-		if strings.HasPrefix(low, "0b") {
+		if strings.HasPrefix(low, "0b") || strings.HasPrefix(low, `\b`) {
 			return true
 		}
 		// bare binary: only 0 and 1 digits, at least one char
