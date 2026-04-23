@@ -86,7 +86,7 @@ func (q Question) Prompt() string {
 // Accepted formats per target base:
 //
 //	hex:  0xF / 0XF / bare hex with at least one a-f letter (e.g. "F", "b4")
-//	bin:  0b1010 / 0B1010 (prefix required to avoid decimal ambiguity)
+//	bin:  0b1010 / 0B1010 / bare 0s and 1s (e.g. "1010")
 //	dec:  plain digits, no base prefix, no a-f
 func (q Question) Check(answer string) bool {
 	answer = strings.TrimSpace(answer)
@@ -96,11 +96,36 @@ func (q Question) Check(answer string) bool {
 	if !matchesBase(answer, q.ToBase) {
 		return false
 	}
-	got, ok := parseAnswer(answer)
+	got, ok := parseAnswerInBase(answer, q.ToBase)
 	if !ok {
 		return false
 	}
 	return got == q.Value
+}
+
+// parseAnswerInBase parses the answer knowing the expected base, so bare
+// "1010" is read as binary 10 (not decimal 1010) when base is "bin".
+func parseAnswerInBase(s, base string) (int, bool) {
+	low := strings.ToLower(strings.TrimSpace(s))
+	switch base {
+	case "bin":
+		raw := low
+		if strings.HasPrefix(raw, "0b") {
+			raw = raw[2:]
+		}
+		v, err := strconv.ParseInt(raw, 2, 64)
+		return int(v), err == nil
+	case "hex":
+		raw := low
+		if strings.HasPrefix(raw, "0x") {
+			raw = raw[2:]
+		}
+		v, err := strconv.ParseInt(raw, 16, 64)
+		return int(v), err == nil
+	default: // dec
+		v, err := strconv.ParseInt(s, 10, 64)
+		return int(v), err == nil
+	}
 }
 
 // matchesBase returns true if the answer string is expressed in the given base.
@@ -123,7 +148,19 @@ func matchesBase(answer, base string) bool {
 		}
 		return false
 	case "bin":
-		return strings.HasPrefix(low, "0b")
+		if strings.HasPrefix(low, "0b") {
+			return true
+		}
+		// bare binary: only 0 and 1 digits, at least one char
+		if len(low) == 0 {
+			return false
+		}
+		for _, c := range low {
+			if c != '0' && c != '1' {
+				return false
+			}
+		}
+		return true
 	case "dec":
 		if strings.HasPrefix(low, "0x") || strings.HasPrefix(low, "0b") {
 			return false

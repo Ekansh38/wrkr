@@ -64,10 +64,14 @@ func TestQuestionCheck(t *testing.T) {
 
 	// bin target: value 10
 	q2 := Question{Value: 10, From: "0xA", ToBase: "bin"}
-	for _, ans := range []string{"0b1010", "0B1010"} {
+	for _, ans := range []string{"0b1010", "0B1010", "1010"} {
 		if !q2.Check(ans) {
 			t.Errorf("Check(%q) should be correct for value 10 → bin", ans)
 		}
+	}
+	// bare bin with wrong value
+	if q2.Check("1111") {
+		t.Error("Check(1111) should be wrong for value 10 → bin")
 	}
 
 	// dec target: value 255
