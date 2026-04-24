@@ -2,6 +2,7 @@ package drill
 
 import (
 	"math/rand"
+	"strings"
 	"testing"
 )
 
@@ -129,8 +130,52 @@ func TestGeneratePowersOfTwo(t *testing.T) {
 		if v <= 0 || (v&(v-1)) != 0 {
 			t.Fatalf("powers value not a power of 2: %d", v)
 		}
-		if v > (1 << 15) {
-			t.Fatalf("powers value too large: %d (max 2^15=%d)", v, 1<<15)
+		// ConvToBin caps at 2^10 to keep binary answers readable
+		if v > (1 << 10) {
+			t.Fatalf("powers+bin value too large: %d (max 2^10=%d)", v, 1<<10)
+		}
+	}
+}
+
+func TestPowersBinCapNotAppliedToHex(t *testing.T) {
+	// ConvToHex should still use full 2^0-2^15 range
+	rng := rand.New(rand.NewSource(3))
+	sawLarge := false
+	for i := 0; i < 500; i++ {
+		q := Generate(ModePowers, ConvToHex, rng)
+		if q.Value > (1 << 10) {
+			sawLarge = true
+		}
+	}
+	if !sawLarge {
+		t.Error("powers+hex should include values above 2^10")
+	}
+}
+
+func TestPowersShowDecimalForHexAndBin(t *testing.T) {
+	// Powers mode should show decimal "from" for ConvToHex and ConvToBin
+	rng := rand.New(rand.NewSource(11))
+	for i := 0; i < 50; i++ {
+		q := Generate(ModePowers, ConvToHex, rng)
+		if strings.HasPrefix(q.From, "0b") || strings.HasPrefix(q.From, "0x") {
+			t.Errorf("powers+hex: expected decimal from, got %q", q.From)
+		}
+	}
+	for i := 0; i < 50; i++ {
+		q := Generate(ModePowers, ConvToBin, rng)
+		if strings.HasPrefix(q.From, "0b") || strings.HasPrefix(q.From, "0x") {
+			t.Errorf("powers+bin: expected decimal from, got %q", q.From)
+		}
+	}
+}
+
+func TestPowersShowHexForDec(t *testing.T) {
+	// Powers mode should show hex "from" for ConvToDec
+	rng := rand.New(rand.NewSource(22))
+	for i := 0; i < 50; i++ {
+		q := Generate(ModePowers, ConvToDec, rng)
+		if !strings.HasPrefix(strings.ToLower(q.From), "0x") {
+			t.Errorf("powers+dec: expected hex from, got %q", q.From)
 		}
 	}
 }
@@ -150,8 +195,8 @@ func TestGenerateRandomMix(t *testing.T) {
 	sawNibble, sawPow, sawByte := false, false, false
 	for i := 0; i < 1000; i++ {
 		q := Generate(ModeRandom, ConvToHex, rng)
-		if q.Value < 0 || q.Value > 65535 {
-			t.Fatalf("random value out of range: %d", q.Value)
+		if q.Value < 0 || q.Value > (1<<12) {
+			t.Fatalf("random value out of range: %d (pool capped at 2^12)", q.Value)
 		}
 		v := q.Value
 		if v <= 15 {
@@ -167,6 +212,40 @@ func TestGenerateRandomMix(t *testing.T) {
 	if !sawNibble || !sawByte || !sawPow {
 		t.Errorf("random mode not covering all sub-modes: nibble=%v byte=%v pow=%v",
 			sawNibble, sawByte, sawPow)
+	}
+}
+
+// ── Generator no-repeat cycling ──────────────────────────────────────────────
+
+func TestGeneratorNoImmediateRepeat(t *testing.T) {
+	rng := rand.New(rand.NewSource(77))
+	modes := []Mode{ModeNibble, ModePowers, ModeByte}
+	convs := []Conv{ConvToHex, ConvToBin, ConvToDec}
+	for _, m := range modes {
+		for _, c := range convs {
+			gen := NewGenerator(m, c, rng)
+			prev := -1
+			for i := 0; i < 200; i++ {
+				q := gen.Next()
+				if q.Value == prev {
+					t.Errorf("mode=%d conv=%d: back-to-back repeat of value %d at step %d", m, c, q.Value, i)
+				}
+				prev = q.Value
+			}
+		}
+	}
+}
+
+func TestGeneratorNibbleCyclesAll16(t *testing.T) {
+	rng := rand.New(rand.NewSource(42))
+	gen := NewGenerator(ModeNibble, ConvToHex, rng)
+	seen := map[int]bool{}
+	for i := 0; i < 16; i++ {
+		q := gen.Next()
+		seen[q.Value] = true
+	}
+	if len(seen) != 16 {
+		t.Errorf("expected all 16 nibble values in first cycle, got %d", len(seen))
 	}
 }
 

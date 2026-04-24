@@ -344,13 +344,14 @@ func runDrill(line *liner.State) {
 	}
 
 	rng := rand.New(rand.NewSource(time.Now().UnixNano()))
+	gen := drill.NewGenerator(mode, conv, rng)
 	fmt.Println()
 
 	var streak, bestStreak, nCorrect, nWrong int
 	correctStyle := color.New(color.FgGreen, color.Bold).SprintFunc()
 
 	for {
-		q := drill.Generate(mode, conv, rng)
+		q := gen.Next()
 
 		// Question on its own line — liner needs a clean line for its prompt so
 		// that backspace/editing redraws correctly. Mixing fmt.Print + line.Prompt("")
