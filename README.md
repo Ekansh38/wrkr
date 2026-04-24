@@ -4,29 +4,45 @@
 
 Terminal calculator that knows units, remembers variables, and copies results to clipboard. Built because `python3 -c "print(128*1024*1024/4096)"` is too confusing and weird.
 
+**[Install](#install) · [Base input](#base-input) · [Base conversion](#base-conversion) · [Bitwise](#bitwise-operators) · [Output modes](#output-modes) · [Type mode](#type-mode) · [Variables](#variables) · [Drill](#drill-mode) · [Use cases](#use-cases)**
+
+---
+
 ## Why
 
 `bc` doesn't know what a megabyte is. Spotlight doesn't remember your block size. This does.
 
 Filesystem/OS work means constant block count math, B-tree depth estimates, working set sizing. One-liner Python works but the context switch is annoying. This lives in the terminal and already has the units loaded.
 
-## Pipeline
+## Install
 
-Raw input goes through these stages before hitting the evaluator:
+Requires Go 1.21+: https://go.dev/dl/
 
 ```
-1. separator strip        1_000_000 -> 1000000, 0b1011_1011 -> 0b10111011
-2. prefix normalization   \xFF -> 0xFF, ob101 -> 0b101
-3. naked base notation    FF hex -> 0xFF, 101 bin -> 0b101
-4. base conversion        0x123 hex to bin -> bin(0x123)
-5. unit conversion        50 mi to km -> (50 * (1609.344 / 1000))
-6. implicit multiply      5 mb -> (5 * 1048576)
-7. bitwise rewrite        a & b -> band(a, b), ~x -> bnot(x)
-8. base translation       0xFF -> 255.000000
-9. AST eval               expr-lang/expr, proper operator precedence
+go install github.com/Ekansh38/wrkr@latest
 ```
 
-All values are float64 internally. Units are multipliers against a baseline (bytes for data, meters for distance).
+If not found after install:
+
+```
+export PATH="$HOME/go/bin:$PATH"
+source ~/.zshrc
+```
+
+To update, re-run the same command. If the proxy has a stale cache:
+
+```
+GOPROXY=direct go install github.com/Ekansh38/wrkr@latest
+```
+
+Build from source:
+
+```
+git clone git@github.com:Ekansh38/wrkr.git
+cd wrkr
+go build -o wrkr .
+sudo mv wrkr /usr/local/bin/wrkr
+```
 
 ## Units
 
@@ -89,6 +105,42 @@ Three equivalent ways to reformat a number:
 
 Annotated source: middle word = source base, `to X` = target. Useful when you already have a prefixed literal and just want it in a different base.
 
+## Bitwise operators
+
+Standard C bitwise operators, with standard C precedence.
+
+| operator | name | example | result |
+|----------|------|---------|--------|
+| `a & b` | AND | `0b1100 & 0b1010` | `8` |
+| `a \| b` | OR | `0b1100 \| 0b1010` | `14` |
+| `a ^ b` | XOR | `0b1100 ^ 0b1010` | `6` |
+| `~a` | NOT | `~0` | `-1` |
+| `a << n` | left shift | `1 << 8` | `256` |
+| `a >> n` | right shift | `256 >> 4` | `16` |
+
+Precedence (high -> low): `~`, `* / + -`, `<< >>`, `&`, `^`, `|` — matching C.  
+`>>` is arithmetic (sign-preserving). `&&` and `||` (logical) are passed through unchanged.
+
+```
+0xFF & 0x0F                  -> 15       low nibble
+0xFF00 | 0x00FF              -> 65535    combine fields
+0xAB ^ 0xCD                  -> 102      XOR checksum
+~0b00001111                  -> -16      flip bits (int64 two's complement)
+1 << 5                       -> 32       set bit 5
+(0xAB >> 4) & 0xF            -> 10       extract high nibble of 0xAB
+0x12345 & ~(4096-1)          -> 73728    page-align to 4 KB boundary
+(0b10110100 >> 3) & 7        -> 6        extract bits [5:3]
+7 & (2 | 4)                  -> 6        check collidable|active flags set
+```
+
+Combines with type mode and format mode:
+
+```
+mode hex
+~0 & 0xFF                    -> 0xFF  [Hex]
+(0xDEAD ^ key) to u16        -> wraps XOR result to u16 range
+```
+
 ## Output modes
 
 `mode <name>` to switch. Bare `hex`/`bin` evaluate as expressions, not mode switches.
@@ -139,43 +191,7 @@ Positive values are zero-padded to the full width. Values outside the range trun
 hex32(_)            -> 0xFFFFFFFC
 ```
 
-## Bitwise operators
-
-Standard C bitwise operators, with standard C precedence.
-
-| operator | name | example | result |
-|----------|------|---------|--------|
-| `a & b` | AND | `0b1100 & 0b1010` | `8` |
-| `a \| b` | OR | `0b1100 \| 0b1010` | `14` |
-| `a ^ b` | XOR | `0b1100 ^ 0b1010` | `6` |
-| `~a` | NOT | `~0` | `-1` |
-| `a << n` | left shift | `1 << 8` | `256` |
-| `a >> n` | right shift | `256 >> 4` | `16` |
-
-Precedence (high -> low): `~`, `* / + -`, `<< >>`, `&`, `^`, `|` — matching C.  
-`>>` is arithmetic (sign-preserving). `&&` and `||` (logical) are passed through unchanged.
-
-```
-0xFF & 0x0F                  -> 15       low nibble
-0xFF00 | 0x00FF              -> 65535    combine fields
-0xAB ^ 0xCD                  -> 102      XOR checksum
-~0b00001111                  -> -16      flip bits (int64 two's complement)
-1 << 5                       -> 32       set bit 5
-(0xAB >> 4) & 0xF            -> 10       extract high nibble of 0xAB
-0x12345 & ~(4096-1)          -> 73728    page-align to 4 KB boundary
-(0b10110100 >> 3) & 7        -> 6        extract bits [5:3]
-7 & (2 | 4)                  -> 6        check collidable|active flags set
-```
-
-Combines with type mode and format mode:
-
-```
-mode hex
-~0 & 0xFF                    -> 0xFF  [Hex]
-(0xDEAD ^ key) to u16        -> wraps XOR result to u16 range
-```
-
-## Two modes: format and type
+## Type mode
 
 The calculator has two orthogonal mode settings:
 
@@ -184,13 +200,7 @@ The calculator has two orthogonal mode settings:
 | **format mode** (`mode`) | how results are displayed | `dec` `hex` `bin` `oct` `size` `bytes` `bits` `bin32` … |
 | **type mode** (`type`) | integer semantics applied to results | `auto` `u8` `s8` `u16` `s16` `u32` `s32` `u64` `s64` `u128` `s128` |
 
-They are independent: `mode hex` + `type u32` shows 32-bit unsigned results in hex.
-
-**Format mode** was described above. **Type mode** is covered next.
-
-## Type mode
-
-`type auto` is the default. Pure float64 math — existing users are completely unaffected.
+`type auto` is the default — pure float64 math, existing behaviour unchanged.
 
 Setting a type mode wraps every numeric result to that integer range:
 
@@ -210,7 +220,7 @@ type s8
 127 + 1     -> -128  [s8 ovf]   wraps from max to min
 ```
 
-Switch back to pure math: `type auto` (or `type off`).
+Switch back: `type auto` (or `type off`).
 
 ### Cast functions
 
@@ -251,29 +261,7 @@ The prompt shows `[mode/type]` when a type is active:
 44  [u8 ovf]
 ```
 
-### Type mode is persisted
-
 Both `mode` and `type` are saved to `~/.wrkr_config.json` and restored on next launch.
-
-## Settings
-
-`setting` alone shows a table of all current settings.
-
-```
-setting clipboard on|off          toggle clipboard copy (default: on)
-
-setting grouping on|off           _ separators in output + clipboard
-setting grouping display on|off   _ separators in terminal only
-setting grouping clipboard on|off _ separators in clipboard only
-
-setting prefix on|off             0x/0b/0o prefix in output + clipboard
-setting prefix display on|off     prefix in terminal only
-setting prefix clipboard on|off   prefix in clipboard only
-```
-
-Defaults: grouping display **on**, grouping clipboard **off**, prefix display **on**, prefix clipboard **off** (raw hex/bin values without `0x`/`0b` on clipboard).
-
-With defaults, `0xFF` in hex mode shows `0xFF  [Hex]` on screen and copies `FF` to clipboard.
 
 ## Variables
 
@@ -297,6 +285,26 @@ del block         remove
 100 tb / (2 mb / 5)
 _ / 60 / 60 / 24
 ```
+
+## Settings
+
+`setting` alone shows a table of all current settings.
+
+```
+setting clipboard on|off          toggle clipboard copy (default: on)
+
+setting grouping on|off           _ separators in output + clipboard
+setting grouping display on|off   _ separators in terminal only
+setting grouping clipboard on|off _ separators in clipboard only
+
+setting prefix on|off             0x/0b/0o prefix in output + clipboard
+setting prefix display on|off     prefix in terminal only
+setting prefix clipboard on|off   prefix in clipboard only
+```
+
+Defaults: grouping display **on**, grouping clipboard **off**, prefix display **on**, prefix clipboard **off** (raw hex/bin values without `0x`/`0b` on clipboard).
+
+With defaults, `0xFF` in hex mode shows `0xFF  [Hex]` on screen and copies `FF` to clipboard.
 
 ## Math
 
@@ -344,55 +352,6 @@ debug (3 * tb) / 3 mb * 1000
   result       1048576000
 ```
 
-## Install
-
-Requires Go 1.21+: https://go.dev/dl/
-
-```
-go install github.com/Ekansh38/wrkr@latest
-```
-
-If not found after install:
-
-```
-export PATH="$HOME/go/bin:$PATH"
-source ~/.zshrc
-```
-
-To update, re-run the same command. If the proxy has a stale cache:
-
-```
-GOPROXY=direct go install github.com/Ekansh38/wrkr@latest
-```
-
-Build from source:
-
-```
-git clone git@github.com:Ekansh38/wrkr.git
-cd wrkr
-go build -o wrkr .
-sudo mv wrkr /usr/local/bin/wrkr
-```
-
-## Precision
-
-IEEE 754 float64. Output capped at 12 decimal places to suppress noise (`1.60934400000000005` becomes `1.609344`). Not suitable for >12 significant decimal places.
-
-## Help
-
-```
-help math
-help systems
-help units
-help modes
-help types
-help vars
-help settings
-help all
-```
-
----
-
 ## Drill mode
 
 Practice binary/hex/decimal conversions interactively. Stats persist to `~/.wrkr_drill.json` across sessions.
@@ -432,6 +391,20 @@ drill
 Typing the wrong base is marked wrong — the point is to actually do the conversion.
 
 **Recommended progression:** nibble → hex until instant, then powers → bin, then byte → hex.
+
+## Help
+
+```
+help math
+help systems
+help units
+help modes
+help types
+help vars
+help settings
+help drill
+help all
+```
 
 ---
 
@@ -609,3 +582,27 @@ All values are IEEE 754 float64 (~15–16 significant decimal digits). Integers 
 The REPL evaluates one expression per line.
 
 **Workaround:** `:e` opens `$EDITOR` with a temp file — write multiple lines, each runs in sequence, variables persist across lines.
+
+---
+
+## Precision
+
+IEEE 754 float64. Output capped at 12 decimal places to suppress noise (`1.60934400000000005` becomes `1.609344`). Not suitable for >12 significant decimal places.
+
+## Pipeline
+
+Raw input goes through these stages before hitting the evaluator:
+
+```
+1. separator strip        1_000_000 -> 1000000, 0b1011_1011 -> 0b10111011
+2. prefix normalization   \xFF -> 0xFF, ob101 -> 0b101
+3. naked base notation    FF hex -> 0xFF, 101 bin -> 0b101
+4. base conversion        0x123 hex to bin -> bin(0x123)
+5. unit conversion        50 mi to km -> (50 * (1609.344 / 1000))
+6. implicit multiply      5 mb -> (5 * 1048576)
+7. bitwise rewrite        a & b -> band(a, b), ~x -> bnot(x)
+8. base translation       0xFF -> 255.000000
+9. AST eval               expr-lang/expr, proper operator precedence
+```
+
+All values are float64 internally. Units are multipliers against a baseline (bytes for data, meters for distance).
