@@ -190,6 +190,32 @@ func printHelp(topic string) {
 		fmt.Println("            prefix display on, prefix clipboard off (raw)")
 		fmt.Println()
 		fmt.Println("  settings are saved to ~/.wrkr_config.json")
+	case "drill":
+		fmt.Println("drill — binary/hex/decimal fluency trainer")
+		fmt.Println()
+		fmt.Println("  drill    start an interactive session")
+		fmt.Println()
+		fmt.Println("  Games:")
+		fmt.Println("    1) convert    Q&A: type the conversion")
+		fmt.Println("    2) flashcard  see answer for 1.5s, then recall from memory")
+		fmt.Println("    3) vibes      pick the closest value — a, b, or c")
+		fmt.Println("    4) sprint     60-second timed blitz")
+		fmt.Println("    5) bit scan   given a hex value, which bit position is set?")
+		fmt.Println()
+		fmt.Println("  Modes:")
+		fmt.Println("    1) nibble  (0–15)      master the 16 core hex facts first")
+		fmt.Println("    2) powers  (2^0–2^15)  essential for fast decomposition")
+		fmt.Println("    3) byte    (0–255)     full 8-bit range")
+		fmt.Println("    4) random  mix of all three")
+		fmt.Println()
+		fmt.Println("  Answer formats:")
+		fmt.Println("    hex:  0xF  or bare with a-f letter (F, b4)")
+		fmt.Println("    bin:  0b1010  or bare 0s and 1s (1010)")
+		fmt.Println("    dec:  plain digits (15, 255)")
+		fmt.Println("    bit:  plain number — 0 = LSB (e.g. 7)")
+		fmt.Println()
+		fmt.Println("  Stats saved to ~/.wrkr_drill.json")
+		fmt.Println("  Recommended: nibble → hex until instant, powers → bin, byte → hex")
 	case "all":
 		printHelp("math")
 		printHelp("systems")
@@ -198,6 +224,7 @@ func printHelp(topic string) {
 		printHelp("types")
 		printHelp("vars")
 		printHelp("settings")
+		printHelp("drill")
 	default:
 		fmt.Println("help math      trig, logs, pow")
 		fmt.Println("help systems   base literals and conversion")
@@ -206,9 +233,8 @@ func printHelp(topic string) {
 		fmt.Println("help types     integer type modes (u8, s16, ...)")
 		fmt.Println("help vars      variables")
 		fmt.Println("help settings  clipboard and other settings")
+		fmt.Println("help drill     drill mode games and answer formats")
 		fmt.Println("help all       everything")
-		fmt.Println()
-		fmt.Println("drill          binary/hex/decimal conversion practice")
 	}
 }
 
@@ -270,6 +296,8 @@ func drillColorBase(base string) string {
 		return styleHex(base)
 	case "bin":
 		return styleBin(base)
+	case "bit":
+		return color.New(color.FgMagenta).Sprint(base)
 	}
 	return boldWhite(base)
 }
@@ -287,87 +315,72 @@ func drillStreakStyle(n int) string {
 	}
 }
 
-// runDrill runs an interactive drill session using the existing liner instance.
-func runDrill(line *liner.State) {
-	fmt.Println()
-	fmt.Println("  Mode:")
-	fmt.Println("    1) nibble  (0–15)     learn the 16 core facts")
-	fmt.Println("    2) powers  (2^0–2^15) essential decomposition")
-	fmt.Println("    3) byte    (0–255)    full 8-bit range")
-	fmt.Println("    4) random  mix of all three")
-	fmt.Println()
-	fmt.Println("  Convert to:")
-	fmt.Println("    h) hex    b) bin    d) dec")
-	fmt.Println()
-	fmt.Printf("  %s to quit\n", dimGray(":q"))
-	fmt.Println()
-
-	modeRaw, err := line.Prompt("  mode [1-4]: ")
-	if err != nil || drillQuit(modeRaw) {
-		fmt.Println()
-		return
-	}
-	convRaw, err := line.Prompt("  to [h/b/d]: ")
-	if err != nil || drillQuit(convRaw) {
-		fmt.Println()
-		return
-	}
-
-	var mode drill.Mode
-	switch strings.TrimSpace(modeRaw) {
+func parseDrillMode(raw string) (drill.Mode, bool) {
+	switch strings.TrimSpace(raw) {
 	case "1":
-		mode = drill.ModeNibble
+		return drill.ModeNibble, true
 	case "2":
-		mode = drill.ModePowers
+		return drill.ModePowers, true
 	case "3":
-		mode = drill.ModeByte
+		return drill.ModeByte, true
 	case "4":
-		mode = drill.ModeRandom
-	default:
-		fmt.Println(styleError("  invalid mode — enter 1, 2, 3, or 4"))
-		fmt.Println()
-		return
+		return drill.ModeRandom, true
 	}
+	return 0, false
+}
 
-	var conv drill.Conv
-	switch strings.ToLower(strings.TrimSpace(convRaw)) {
+func parseDrillConv(raw string) (drill.Conv, bool) {
+	switch strings.ToLower(strings.TrimSpace(raw)) {
 	case "h", "hex":
-		conv = drill.ConvToHex
+		return drill.ConvToHex, true
 	case "b", "bin":
-		conv = drill.ConvToBin
+		return drill.ConvToBin, true
 	case "d", "dec":
-		conv = drill.ConvToDec
-	default:
-		fmt.Println(styleError("  invalid conversion — enter h, b, or d"))
-		fmt.Println()
+		return drill.ConvToDec, true
+	}
+	return 0, false
+}
+
+func showDrillSummary(stats *drill.Stats, nCorrect, nWrong, bestStreak int, game string) {
+	total := nCorrect + nWrong
+	if total == 0 {
 		return
 	}
+	pct := 100 * nCorrect / total
+	fmt.Printf("  %d correct  %d wrong  %d%%",
+		nCorrect, nWrong, pct,
+	)
+	if bestStreak > 0 {
+		fmt.Printf("  best streak %s", drillStreakStyle(bestStreak))
+	}
+	fmt.Println()
+	fmt.Println()
+	stats.LastSession = &drill.SessionSummary{
+		Correct: nCorrect,
+		Wrong:   nWrong,
+		Game:    game,
+	}
+}
 
+func runConvertDrill(line *liner.State, mode drill.Mode, conv drill.Conv, stats *drill.Stats) {
 	rng := rand.New(rand.NewSource(time.Now().UnixNano()))
 	gen := drill.NewGenerator(mode, conv, rng)
-	fmt.Println()
-
-	var streak, bestStreak, nCorrect, nWrong int
 	correctStyle := color.New(color.FgGreen, color.Bold).SprintFunc()
-
+	var streak, bestStreak, nCorrect, nWrong int
+	fmt.Println()
 	for {
 		q := gen.Next()
-
-		// Question on its own line — liner needs a clean line for its prompt so
-		// that backspace/editing redraws correctly. Mixing fmt.Print + line.Prompt("")
-		// on the same line causes liner to redraw from col 0 and wipe the question.
 		fmt.Printf("  %s  →  %s\n", drillColorValue(q.From), drillColorBase(q.ToBase))
-
 		ans, err := line.Prompt("  > ")
 		ans = strings.TrimSpace(ans)
 		if err != nil || drillQuit(ans) {
 			fmt.Println()
 			break
 		}
-
 		if q.Check(ans) {
 			streak++
 			nCorrect++
+			stats.Record(q.Value, q.ToBase, true)
 			if streak > bestStreak {
 				bestStreak = streak
 			}
@@ -380,7 +393,7 @@ func runDrill(line *liner.State) {
 			prevStreak := streak
 			streak = 0
 			nWrong++
-			// Don't nest drillColorValue inside dimGray — the outer gray kills the base color.
+			stats.Record(q.Value, q.ToBase, false)
 			if prevStreak > 1 {
 				fmt.Printf("  %s  %s  %s\n\n",
 					styleError("✗"),
@@ -395,14 +408,321 @@ func runDrill(line *liner.State) {
 			}
 		}
 	}
+	showDrillSummary(stats, nCorrect, nWrong, bestStreak, "convert")
+}
 
-	total := nCorrect + nWrong
-	if total > 0 {
-		fmt.Printf("  %s correct  %s wrong  best streak %s\n\n",
-			boldWhite(fmt.Sprintf("%d", nCorrect)),
-			boldWhite(fmt.Sprintf("%d", nWrong)),
-			drillStreakStyle(bestStreak),
+func runFlashcardDrill(line *liner.State, mode drill.Mode, conv drill.Conv, stats *drill.Stats) {
+	rng := rand.New(rand.NewSource(time.Now().UnixNano()))
+	gen := drill.NewGenerator(mode, conv, rng)
+	correctStyle := color.New(color.FgGreen, color.Bold).SprintFunc()
+	var streak, bestStreak, nCorrect, nWrong int
+	fmt.Println()
+	for {
+		q := gen.Next()
+		// Show question + answer for 1.5 seconds, then erase the answer line.
+		fmt.Printf("  %s  →  %s:  %s\n",
+			drillColorValue(q.From), drillColorBase(q.ToBase), drillColorValue(q.CorrectAnswer()))
+		time.Sleep(1500 * time.Millisecond)
+		fmt.Print("\033[1A\033[2K") // cursor up 1, clear line
+		fmt.Printf("  %s  →  %s\n", drillColorValue(q.From), drillColorBase(q.ToBase))
+		ans, err := line.Prompt("  > ")
+		ans = strings.TrimSpace(ans)
+		if err != nil || drillQuit(ans) {
+			fmt.Println()
+			break
+		}
+		if q.Check(ans) {
+			streak++
+			nCorrect++
+			stats.Record(q.Value, q.ToBase, true)
+			if streak > bestStreak {
+				bestStreak = streak
+			}
+			if streak > 1 {
+				fmt.Printf("  %s  %s\n\n", correctStyle("✓"), drillStreakStyle(streak))
+			} else {
+				fmt.Printf("  %s\n\n", correctStyle("✓"))
+			}
+		} else {
+			prevStreak := streak
+			streak = 0
+			nWrong++
+			stats.Record(q.Value, q.ToBase, false)
+			if prevStreak > 1 {
+				fmt.Printf("  %s  %s  %s\n\n",
+					styleError("✗"),
+					drillColorValue(q.CorrectAnswer()),
+					dimGray(fmt.Sprintf("(lost %d)", prevStreak)),
+				)
+			} else {
+				fmt.Printf("  %s  %s\n\n",
+					styleError("✗"),
+					drillColorValue(q.CorrectAnswer()),
+				)
+			}
+		}
+	}
+	showDrillSummary(stats, nCorrect, nWrong, bestStreak, "flashcard")
+}
+
+func runApproxDrill(line *liner.State, mode drill.Mode, stats *drill.Stats) {
+	rng := rand.New(rand.NewSource(time.Now().UnixNano()))
+	gen := drill.NewApproxGenerator(mode, rng)
+	correctStyle := color.New(color.FgGreen, color.Bold).SprintFunc()
+	var streak, bestStreak, nCorrect, nWrong int
+	fmt.Println()
+	for {
+		q := gen.Next()
+		fmt.Printf("  %s  →  dec (closest?)\n", drillColorValue(q.From))
+		fmt.Printf("    a) %s   b) %s   c) %s\n",
+			boldWhite(fmt.Sprintf("%d", q.Options[0])),
+			boldWhite(fmt.Sprintf("%d", q.Options[1])),
+			boldWhite(fmt.Sprintf("%d", q.Options[2])),
 		)
+		ans, err := line.Prompt("  > ")
+		ans = strings.TrimSpace(ans)
+		if err != nil || drillQuit(ans) {
+			fmt.Println()
+			break
+		}
+		if q.Check(ans) {
+			streak++
+			nCorrect++
+			stats.Record(q.Value, "dec", true)
+			if streak > bestStreak {
+				bestStreak = streak
+			}
+			if streak > 1 {
+				fmt.Printf("  %s  %s\n\n", correctStyle("✓"), drillStreakStyle(streak))
+			} else {
+				fmt.Printf("  %s\n\n", correctStyle("✓"))
+			}
+		} else {
+			prevStreak := streak
+			streak = 0
+			nWrong++
+			stats.Record(q.Value, "dec", false)
+			correctAns := fmt.Sprintf("%s) %d", q.CorrectLabel, q.Value)
+			if prevStreak > 1 {
+				fmt.Printf("  %s  %s  %s\n\n",
+					styleError("✗"),
+					boldWhite(correctAns),
+					dimGray(fmt.Sprintf("(lost %d)", prevStreak)),
+				)
+			} else {
+				fmt.Printf("  %s  %s\n\n",
+					styleError("✗"),
+					boldWhite(correctAns),
+				)
+			}
+		}
+	}
+	showDrillSummary(stats, nCorrect, nWrong, bestStreak, "vibes")
+}
+
+func runSprintDrill(line *liner.State, mode drill.Mode, conv drill.Conv, stats *drill.Stats) {
+	const duration = 60 * time.Second
+	rng := rand.New(rand.NewSource(time.Now().UnixNano()))
+	gen := drill.NewGenerator(mode, conv, rng)
+	correctStyle := color.New(color.FgGreen, color.Bold).SprintFunc()
+	var nCorrect, nWrong int
+	start := time.Now()
+	fmt.Println()
+	fmt.Printf("  %s\n\n", dimGray("60 seconds — go!"))
+	for {
+		elapsed := time.Since(start)
+		if elapsed >= duration {
+			break
+		}
+		remaining := duration - elapsed
+		secs := int(remaining.Seconds()) + 1
+		q := gen.Next()
+		fmt.Printf("  %s  %s  →  %s\n",
+			dimGray(fmt.Sprintf("[%02d]", secs)),
+			drillColorValue(q.From),
+			drillColorBase(q.ToBase),
+		)
+		ans, err := line.Prompt("  > ")
+		ans = strings.TrimSpace(ans)
+		if err != nil || drillQuit(ans) {
+			fmt.Println()
+			showDrillSummary(stats, nCorrect, nWrong, 0, "sprint")
+			return
+		}
+		if time.Since(start) >= duration {
+			fmt.Println()
+			break
+		}
+		if q.Check(ans) {
+			nCorrect++
+			stats.Record(q.Value, q.ToBase, true)
+			fmt.Printf("  %s\n\n", correctStyle("✓"))
+		} else {
+			nWrong++
+			stats.Record(q.Value, q.ToBase, false)
+			fmt.Printf("  %s  %s\n\n", styleError("✗"), drillColorValue(q.CorrectAnswer()))
+		}
+	}
+	fmt.Printf("  %s  ", boldWhite("Time!"))
+	showDrillSummary(stats, nCorrect, nWrong, 0, "sprint")
+}
+
+func runBitScanDrill(line *liner.State, stats *drill.Stats) {
+	rng := rand.New(rand.NewSource(time.Now().UnixNano()))
+	gen := drill.NewGenerator(drill.ModePowers, drill.ConvToBitPos, rng)
+	correctStyle := color.New(color.FgGreen, color.Bold).SprintFunc()
+	var streak, bestStreak, nCorrect, nWrong int
+	fmt.Println()
+	fmt.Printf("  %s\n\n", dimGray("which bit position is set? (0 = LSB)"))
+	for {
+		q := gen.Next()
+		fmt.Printf("  %s  →  bit position\n", drillColorValue(q.From))
+		ans, err := line.Prompt("  > ")
+		ans = strings.TrimSpace(ans)
+		if err != nil || drillQuit(ans) {
+			fmt.Println()
+			break
+		}
+		if q.Check(ans) {
+			streak++
+			nCorrect++
+			stats.Record(q.Value, "bit", true)
+			if streak > bestStreak {
+				bestStreak = streak
+			}
+			if streak > 1 {
+				fmt.Printf("  %s  %s\n\n", correctStyle("✓"), drillStreakStyle(streak))
+			} else {
+				fmt.Printf("  %s\n\n", correctStyle("✓"))
+			}
+		} else {
+			prevStreak := streak
+			streak = 0
+			nWrong++
+			stats.Record(q.Value, "bit", false)
+			if prevStreak > 1 {
+				fmt.Printf("  %s  %s  %s\n\n",
+					styleError("✗"),
+					boldWhite(q.CorrectAnswer()),
+					dimGray(fmt.Sprintf("(lost %d)", prevStreak)),
+				)
+			} else {
+				fmt.Printf("  %s  %s\n\n",
+					styleError("✗"),
+					boldWhite(q.CorrectAnswer()),
+				)
+			}
+		}
+	}
+	showDrillSummary(stats, nCorrect, nWrong, bestStreak, "bit scan")
+}
+
+// runDrill runs an interactive drill session using the existing liner instance.
+func runDrill(line *liner.State) {
+	stats := drill.LoadStats()
+	defer func() { drill.SaveStats(stats) }()
+
+	fmt.Println()
+
+	// Show last session and weak spots if available.
+	if stats.LastSession != nil {
+		ls := stats.LastSession
+		total := ls.Correct + ls.Wrong
+		pctStr := ""
+		if total > 0 {
+			pctStr = fmt.Sprintf(" (%d%%)", 100*ls.Correct/total)
+		}
+		fmt.Printf("  %s  last: %d/%d%s — %s\n",
+			dimGray("stats"),
+			ls.Correct, total, pctStr,
+			dimGray(ls.Game),
+		)
+	}
+	if missed := stats.TopMissed(3); len(missed) > 0 {
+		fmt.Printf("  %s", dimGray("weak:  "))
+		for i, m := range missed {
+			if i > 0 {
+				fmt.Printf("  ")
+			}
+			fmt.Printf("%s %s", m.Display, dimGray(fmt.Sprintf("×%d", m.Count)))
+		}
+		fmt.Println()
+	}
+
+	fmt.Println()
+	fmt.Println("  Game:")
+	fmt.Println("    1) convert    binary ↔ hex ↔ decimal Q&A")
+	fmt.Println("    2) flashcard  see answer briefly, then recall")
+	fmt.Println("    3) vibes      multiple choice — which is closest?")
+	fmt.Println("    4) sprint     60-second timed blitz")
+	fmt.Println("    5) bit scan   which bit position is set?")
+	fmt.Println()
+	fmt.Printf("  %s to quit\n", dimGray(":q"))
+	fmt.Println()
+
+	gameRaw, err := line.Prompt("  game [1-5]: ")
+	if err != nil || drillQuit(gameRaw) {
+		fmt.Println()
+		return
+	}
+	game := strings.TrimSpace(gameRaw)
+
+	// Bit scan: no mode/conv selection needed.
+	if game == "5" {
+		runBitScanDrill(line, &stats)
+		return
+	}
+
+	// All other games need a mode.
+	fmt.Println()
+	fmt.Println("  Mode:")
+	fmt.Println("    1) nibble  (0–15)")
+	fmt.Println("    2) powers  (2^0–2^15)")
+	fmt.Println("    3) byte    (0–255)")
+	fmt.Println("    4) random  mix")
+	fmt.Println()
+
+	modeRaw, err := line.Prompt("  mode [1-4]: ")
+	if err != nil || drillQuit(modeRaw) {
+		fmt.Println()
+		return
+	}
+	mode, ok := parseDrillMode(modeRaw)
+	if !ok {
+		fmt.Println(styleError("  invalid mode — enter 1, 2, 3, or 4"))
+		fmt.Println()
+		return
+	}
+
+	// Vibes: no conv selection needed.
+	if game == "3" {
+		runApproxDrill(line, mode, &stats)
+		return
+	}
+
+	// Convert, flashcard, sprint all need a target base.
+	convRaw, err := line.Prompt("  to [h/b/d]: ")
+	if err != nil || drillQuit(convRaw) {
+		fmt.Println()
+		return
+	}
+	conv, ok := parseDrillConv(convRaw)
+	if !ok {
+		fmt.Println(styleError("  invalid — enter h, b, or d"))
+		fmt.Println()
+		return
+	}
+
+	switch game {
+	case "1":
+		runConvertDrill(line, mode, conv, &stats)
+	case "2":
+		runFlashcardDrill(line, mode, conv, &stats)
+	case "4":
+		runSprintDrill(line, mode, conv, &stats)
+	default:
+		fmt.Println(styleError("  invalid game — enter 1–5"))
+		fmt.Println()
 	}
 }
 
@@ -494,7 +814,7 @@ func Run() {
 					if numCompleted == 1 {
 						candidates = []string{
 							"math", "systems", "units", "modes", "types",
-							"vars", "settings", "all",
+							"vars", "settings", "drill", "all",
 						}
 					}
 				case "del":

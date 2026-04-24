@@ -395,30 +395,39 @@ help all
 
 ## Drill mode
 
-Practice binary/hex/decimal conversions interactively.
+Practice binary/hex/decimal conversions interactively. Stats persist to `~/.wrkr_drill.json` across sessions.
 
 ```
 drill
 ```
 
-Prompts for a mode and target base, then runs you through conversions until you type `q`.
+**Games:**
 
-**Modes:**
+| # | Game | Description |
+|---|------|-------------|
+| 1 | convert | Standard Q&A — type the conversion |
+| 2 | flashcard | Answer flashes for 1.5s, then you recall from memory |
+| 3 | vibes | Multiple choice — pick the closest decimal value (a/b/c) |
+| 4 | sprint | 60-second timed blitz |
+| 5 | bit scan | Given a hex value, which bit position is set? (0 = LSB) |
+
+**Modes** (for games 1–4):
 
 | # | Mode | Range | Purpose |
 |---|------|-------|---------|
 | 1 | nibble | 0–15 | Master the 16 core hex facts first |
 | 2 | powers | 2^0–2^15 | Essential for fast decomposition |
 | 3 | byte | 0–255 | Full 8-bit range |
-| 4 | random | mix | All three modes combined |
+| 4 | random | mix | All three combined |
 
-**Convert to:** `h` hex · `b` bin · `d` dec
+**Convert to** (for games 1, 2, 4): `h` hex · `b` bin · `d` dec
 
 **Accepted answer formats:**
 
-- hex: `0xF` or bare with a-f letter (`F`, `b4`) 
-- bin: `0b1010` (prefix required)
+- hex: `0xF` or bare with a-f letter (`F`, `b4`)
+- bin: `0b1010` or bare 0s/1s (`1010`)
 - dec: plain digits (`15`, `255`)
+- bit: plain number, 0 = LSB (`7`)
 
 Typing the wrong base is marked wrong — the point is to actually do the conversion.
 

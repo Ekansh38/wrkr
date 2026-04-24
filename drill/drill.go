@@ -10,6 +10,7 @@ package drill
 
 import (
 	"fmt"
+	"math/bits"
 	"math/rand"
 	"strconv"
 	"strings"
@@ -29,9 +30,10 @@ const (
 type Conv int
 
 const (
-	ConvToHex Conv = iota
+	ConvToHex    Conv = iota
 	ConvToBin
 	ConvToDec
+	ConvToBitPos // which bit position (0 = LSB) is set?
 )
 
 // Question holds one drill question.
@@ -94,7 +96,15 @@ func (g *Generator) reshuffle() {
 //
 // Powers + ConvToBin is capped at 2^10 (1024): above that the binary string
 // becomes a tedious sequence of zeros that teaches nothing new.
+// ConvToBitPos always uses all 16 powers regardless of mode.
 func (g *Generator) buildPool() []int {
+	if g.conv == ConvToBitPos {
+		vals := make([]int, 16)
+		for i := range vals {
+			vals[i] = 1 << i
+		}
+		return vals
+	}
 	switch g.mode {
 	case ModeNibble:
 		vals := make([]int, 16)
@@ -192,9 +202,23 @@ func (g *Generator) makeQuestion(val int) Question {
 				from = fmtHex(val)
 			}
 		}
+
+	case ConvToBitPos:
+		// Show hex — most practical (reading register values is usually hex)
+		from = fmtHex(val)
 	}
 
-	toBase := [...]string{"hex", "bin", "dec"}[g.conv]
+	var toBase string
+	switch g.conv {
+	case ConvToHex:
+		toBase = "hex"
+	case ConvToBin:
+		toBase = "bin"
+	case ConvToDec:
+		toBase = "dec"
+	case ConvToBitPos:
+		toBase = "bit"
+	}
 	return Question{Value: val, From: from, ToBase: toBase, Mode: g.mode}
 }
 
@@ -232,6 +256,9 @@ func (q Question) CorrectAnswer() string {
 		return fmtHex(q.Value)
 	case "bin":
 		return fmtBin(q.Value, adaptiveBinWidth(q.Mode, q.Value))
+	case "bit":
+		// Value is always a power of 2; return its bit position (0 = LSB).
+		return strconv.Itoa(bits.TrailingZeros(uint(q.Value)))
 	default:
 		return fmtDec(q.Value)
 	}
@@ -292,7 +319,7 @@ func parseAnswerInBase(s, base string) (int, bool) {
 		raw := strings.TrimPrefix(low, "0x")
 		v, err := strconv.ParseInt(raw, 16, 64)
 		return int(v), err == nil
-	default: // dec
+	default: // dec, bit — plain decimal integer
 		v, err := strconv.ParseInt(s, 10, 64)
 		return int(v), err == nil
 	}
@@ -328,7 +355,8 @@ func matchesBase(answer, base string) bool {
 			}
 		}
 		return true
-	case "dec":
+	case "dec", "bit":
+		// bit position answer is a plain decimal integer (0–15)
 		if strings.HasPrefix(low, "0x") || strings.HasPrefix(low, "0b") || strings.HasPrefix(low, `\b`) {
 			return false
 		}
