@@ -31,6 +31,7 @@ var (
 		"oct":   color.New(color.FgYellow).SprintFunc(),
 		"bytes": color.New(color.FgHiWhite).SprintFunc(),
 		"bits":  color.New(color.FgMagenta).SprintFunc(),
+		"all":   color.New(color.FgHiWhite).SprintFunc(),
 	}
 )
 

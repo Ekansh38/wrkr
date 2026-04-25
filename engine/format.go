@@ -34,6 +34,7 @@ var ModeMap = map[string]string{
 	"size":  "size",
 	"bytes": "bytes",
 	"bits":  "bits",
+	"all":   "all",
 }
 
 func init() {
@@ -434,8 +435,18 @@ func FormatClipboard(val float64) string {
 		s = FormatDecimal(val)
 	case "bits":
 		s = FormatDecimal(val * 8)
+	case "all":
+		s = FormatDecimal(val) // clipboard gets plain decimal in all-mode
 	default:
 		s = FormatDecimal(val)
 	}
 	return ApplyClipboardTransforms(s)
+}
+
+// FormatAll returns the three components (dec, hex, bin) for "mode all" display.
+// Callers are responsible for colorizing each part separately.
+func FormatAll(val float64) (dec, hex, bin string) {
+	return ApplyDisplayTransforms(FormatDecimal(val)),
+		ApplyDisplayTransforms(FormatHex(val)),
+		ApplyDisplayTransforms(FormatBin(val))
 }

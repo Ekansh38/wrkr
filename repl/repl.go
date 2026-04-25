@@ -69,6 +69,8 @@ func printHelp(topic string) {
 		fmt.Println("    0x123 hex to bin  0b1010 bin to hex          annotated source")
 		fmt.Println()
 		fmt.Println("  bitwise:  & | ^ ~ << >>  (standard C precedence)")
+		fmt.Println("  bswap16/32/64(x)   byte-swap for endianness conversion")
+		fmt.Println("  popcount(x)        count set bits (Hamming weight)")
 		fmt.Println("    0xFF & 0x0F              -> 15      (low nibble)")
 		fmt.Println("    (0xAB >> 4) & 0xF        -> 10      (high nibble)")
 		fmt.Println("    1 << 5                   -> 32      (set bit 5)")
@@ -119,6 +121,8 @@ func printHelp(topic string) {
 		fmt.Println("  suppressed when units cancel (e.g. mb/gb*1000 = dimensionless).")
 		fmt.Println()
 		fmt.Println("  bare 'hex'/'bin' evaluate as expressions. only 'mode hex' switches.")
+		fmt.Println()
+		fmt.Println("  mode all   show dec + hex + bin simultaneously")
 	case "types", "type", "integers", "int":
 		fmt.Println("type modes  (integer semantics, orthogonal to format mode)")
 		fmt.Println()
@@ -365,6 +369,7 @@ func showDrillSummary(stats *drill.Stats, nCorrect, nWrong, bestStreak int, game
 func runConvertDrill(line *liner.State, mode drill.Mode, conv drill.Conv, stats *drill.Stats) {
 	rng := rand.New(rand.NewSource(time.Now().UnixNano()))
 	gen := drill.NewGenerator(mode, conv, rng)
+	gen.ApplyWeakSpotBias(stats.MissedCounts)
 	correctStyle := color.New(color.FgGreen, color.Bold).SprintFunc()
 	var streak, bestStreak, nCorrect, nWrong int
 	fmt.Println()
@@ -414,6 +419,7 @@ func runConvertDrill(line *liner.State, mode drill.Mode, conv drill.Conv, stats 
 func runFlashcardDrill(line *liner.State, mode drill.Mode, conv drill.Conv, stats *drill.Stats) {
 	rng := rand.New(rand.NewSource(time.Now().UnixNano()))
 	gen := drill.NewGenerator(mode, conv, rng)
+	gen.ApplyWeakSpotBias(stats.MissedCounts)
 	correctStyle := color.New(color.FgGreen, color.Bold).SprintFunc()
 	var streak, bestStreak, nCorrect, nWrong int
 	fmt.Println()
@@ -562,6 +568,7 @@ func runSprintDrill(line *liner.State, mode drill.Mode, conv drill.Conv, stats *
 	const duration = 60 * time.Second
 	rng := rand.New(rand.NewSource(time.Now().UnixNano()))
 	gen := drill.NewGenerator(mode, conv, rng)
+	gen.ApplyWeakSpotBias(stats.MissedCounts)
 	correctStyle := color.New(color.FgGreen, color.Bold).SprintFunc()
 	var nCorrect, nWrong int
 	start := time.Now()
@@ -658,11 +665,18 @@ func runBitScanDrill(line *liner.State, stats *drill.Stats) {
 // runDrill runs an interactive drill session using the existing liner instance.
 func runDrill(line *liner.State) {
 	stats := drill.LoadStats()
+	stats.UpdateStreak()
 	defer func() { drill.SaveStats(stats) }()
 
 	fmt.Println()
 
-	// Show last session and weak spots if available.
+	// Streak + last session summary.
+	if stats.Streak > 1 {
+		fmt.Printf("  %s  day %s\n",
+			dimGray("streak"),
+			drillStreakStyle(stats.Streak),
+		)
+	}
 	if stats.LastSession != nil {
 		ls := stats.LastSession
 		total := ls.Correct + ls.Wrong
@@ -1642,6 +1656,20 @@ func outN(val float64, sizeCtx engine.SizeUnitContext, convTarget string) {
 		} else {
 			typeHint = engine.CurrentTypeMode
 		}
+	}
+
+	// mode all: render dec + hex + bin with per-base colors.
+	if convTarget == "" && engine.CurrentMode == "all" {
+		dec, hex, bin := engine.FormatAll(wrapped)
+		line := boldWhite(dec) + "  " + styleHex(hex) + "  " + styleBin(bin)
+		if typeHint != "" {
+			line += dimGray("  [" + typeHint + "]")
+		}
+		if engine.ClipboardEnabled {
+			clipboard.WriteAll(engine.FormatDecimal(wrapped))
+		}
+		fmt.Println(line)
+		return
 	}
 
 	var terminal, clip string

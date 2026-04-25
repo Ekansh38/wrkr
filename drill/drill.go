@@ -370,6 +370,47 @@ func matchesBase(answer, base string) bool {
 	return false
 }
 
+// ApplyWeakSpotBias adds extra pool entries for values the user misses often,
+// giving them a modestly higher chance of appearing. Call once after NewGenerator
+// and before the first Next(). Only values already in the pool are affected.
+func (g *Generator) ApplyWeakSpotBias(missedCounts map[string]int) {
+	// Build a set of pool values for fast lookup.
+	inPool := make(map[int]bool, len(g.pool))
+	for _, v := range g.pool {
+		inPool[v] = true
+	}
+	for key, count := range missedCounts {
+		if count < 2 {
+			continue // only bias values missed more than once
+		}
+		var val int
+		var base string
+		if _, err := fmt.Sscanf(key, "%d:%s", &val, &base); err != nil {
+			continue
+		}
+		if !g.convMatchesBase(base) || !inPool[val] {
+			continue
+		}
+		// Add 1 extra copy (slight nudge, not overwhelming).
+		g.pool = append(g.pool, val)
+	}
+	g.reshuffle()
+}
+
+func (g *Generator) convMatchesBase(base string) bool {
+	switch g.conv {
+	case ConvToHex:
+		return base == "hex"
+	case ConvToBin:
+		return base == "bin"
+	case ConvToDec:
+		return base == "dec"
+	case ConvToBitPos:
+		return base == "bit"
+	}
+	return false
+}
+
 // Generate is a convenience wrapper for tests and one-shot use.
 // Production code should use NewGenerator for no-repeat cycling.
 func Generate(mode Mode, conv Conv, rng *rand.Rand) Question {

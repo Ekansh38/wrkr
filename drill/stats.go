@@ -6,14 +6,17 @@ import (
 	"os"
 	"path/filepath"
 	"sort"
+	"time"
 )
 
 // Stats tracks drill performance across sessions, persisted to ~/.wrkr_drill.json.
 type Stats struct {
-	TotalCorrect int            `json:"totalCorrect"`
-	TotalWrong   int            `json:"totalWrong"`
-	MissedCounts map[string]int `json:"missedCounts"` // "value:toBase" → all-time miss count
-	LastSession  *SessionSummary `json:"lastSession,omitempty"`
+	TotalCorrect  int             `json:"totalCorrect"`
+	TotalWrong    int             `json:"totalWrong"`
+	MissedCounts  map[string]int  `json:"missedCounts"` // "value:toBase" - all-time miss count
+	LastSession   *SessionSummary `json:"lastSession,omitempty"`
+	Streak        int             `json:"streak"`        // consecutive days drilled
+	LastDrillDate string          `json:"lastDrillDate"` // YYYY-MM-DD
 }
 
 // SessionSummary records what happened in a single drill session.
@@ -100,6 +103,22 @@ func (s *Stats) TopMissed(n int) []MissEntry {
 		}
 	}
 	return result
+}
+
+// UpdateStreak increments the streak if today is a new day, resets if a day
+// was missed. Safe to call multiple times in one day (idempotent after first call).
+func (s *Stats) UpdateStreak() {
+	today := time.Now().Format("2006-01-02")
+	if s.LastDrillDate == today {
+		return // already counted today
+	}
+	yesterday := time.Now().AddDate(0, 0, -1).Format("2006-01-02")
+	if s.LastDrillDate == yesterday {
+		s.Streak++
+	} else {
+		s.Streak = 1 // missed a day (or first ever session)
+	}
+	s.LastDrillDate = today
 }
 
 func statsKey(value int, toBase string) string {

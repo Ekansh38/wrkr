@@ -3,6 +3,7 @@ package engine
 import (
 	"fmt"
 	"math"
+	"math/bits"
 )
 
 // Unit pairs a set of alias strings with a base-unit multiplier.
@@ -53,6 +54,12 @@ var CalcEnv = map[string]interface{}{
 	"oct":     func(f float64) string { v, _ := ApplyTypeMode(f); return FormatOct(v) },
 	"dec":     func(f float64) string { v, _ := ApplyTypeMode(f); return FormatDecimal(v) },
 	"decimal": func(f float64) string { v, _ := ApplyTypeMode(f); return FormatDecimal(v) },
+	// Byte-swap (endianness conversion).
+	"bswap16": func(f float64) float64 { return float64(bits.ReverseBytes16(uint16(safeInt64(f)))) },
+	"bswap32": func(f float64) float64 { return float64(bits.ReverseBytes32(uint32(safeInt64(f)))) },
+	"bswap64": func(f float64) float64 { return float64(bits.ReverseBytes64(uint64(safeInt64(f)))) },
+	// Count set bits (Hamming weight).
+	"popcount": func(f float64) float64 { return float64(bits.OnesCount64(uint64(safeInt64(f)))) },
 }
 
 func init() {
