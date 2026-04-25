@@ -465,20 +465,16 @@ func runFlashcardDrill(line *liner.State, mode drill.Mode, conv drill.Conv, stat
 	showDrillSummary(stats, nCorrect, nWrong, bestStreak, "flashcard")
 }
 
-func runApproxDrill(line *liner.State, mode drill.Mode, stats *drill.Stats) {
+func runApproxDrill(line *liner.State, stats *drill.Stats) {
 	rng := rand.New(rand.NewSource(time.Now().UnixNano()))
-	gen := drill.NewApproxGenerator(mode, rng)
+	gen := drill.NewApproxGenerator(rng)
 	correctStyle := color.New(color.FgGreen, color.Bold).SprintFunc()
 	var streak, bestStreak, nCorrect, nWrong int
 	fmt.Println()
+	fmt.Printf("  %s\n\n", dimGray("type your decimal estimate — within 25% counts"))
 	for {
 		q := gen.Next()
-		fmt.Printf("  %s  →  dec (closest?)\n", drillColorValue(q.From))
-		fmt.Printf("    a) %s   b) %s   c) %s\n",
-			boldWhite(fmt.Sprintf("%d", q.Options[0])),
-			boldWhite(fmt.Sprintf("%d", q.Options[1])),
-			boldWhite(fmt.Sprintf("%d", q.Options[2])),
-		)
+		fmt.Printf("  %s  →  ~dec\n", drillColorValue(q.From))
 		ans, err := line.Prompt("  > ")
 		ans = strings.TrimSpace(ans)
 		if err != nil || drillQuit(ans) {
@@ -492,27 +488,29 @@ func runApproxDrill(line *liner.State, mode drill.Mode, stats *drill.Stats) {
 			if streak > bestStreak {
 				bestStreak = streak
 			}
+			exact := dimGray(fmt.Sprintf("= %d", q.Value))
 			if streak > 1 {
-				fmt.Printf("  %s  %s\n\n", correctStyle("✓"), drillStreakStyle(streak))
+				fmt.Printf("  %s  %s  %s\n\n", correctStyle("✓"), exact, drillStreakStyle(streak))
 			} else {
-				fmt.Printf("  %s\n\n", correctStyle("✓"))
+				fmt.Printf("  %s  %s\n\n", correctStyle("✓"), exact)
 			}
 		} else {
 			prevStreak := streak
 			streak = 0
 			nWrong++
 			stats.Record(q.Value, "dec", false)
-			correctAns := fmt.Sprintf("%s) %d", q.CorrectLabel, q.Value)
 			if prevStreak > 1 {
-				fmt.Printf("  %s  %s  %s\n\n",
+				fmt.Printf("  %s  %s  %s  %s\n\n",
 					styleError("✗"),
-					boldWhite(correctAns),
+					boldWhite(fmt.Sprintf("%d", q.Value)),
+					dimGray(fmt.Sprintf("(ok: %s)", q.RangeHint())),
 					dimGray(fmt.Sprintf("(lost %d)", prevStreak)),
 				)
 			} else {
-				fmt.Printf("  %s  %s\n\n",
+				fmt.Printf("  %s  %s  %s\n\n",
 					styleError("✗"),
-					boldWhite(correctAns),
+					boldWhite(fmt.Sprintf("%d", q.Value)),
+					dimGray(fmt.Sprintf("(ok: %s)", q.RangeHint())),
 				)
 			}
 		}
@@ -667,13 +665,17 @@ func runDrill(line *liner.State) {
 	}
 	game := strings.TrimSpace(gameRaw)
 
-	// Bit scan: no mode/conv selection needed.
+	// Bit scan and vibes: no mode/conv selection needed.
 	if game == "5" {
 		runBitScanDrill(line, &stats)
 		return
 	}
+	if game == "3" {
+		runApproxDrill(line, &stats)
+		return
+	}
 
-	// All other games need a mode.
+	// Convert, flashcard, sprint need a mode.
 	fmt.Println()
 	fmt.Println("  Mode:")
 	fmt.Println("    1) nibble  (0–15)")
@@ -691,12 +693,6 @@ func runDrill(line *liner.State) {
 	if !ok {
 		fmt.Println(styleError("  invalid mode — enter 1, 2, 3, or 4"))
 		fmt.Println()
-		return
-	}
-
-	// Vibes: no conv selection needed.
-	if game == "3" {
-		runApproxDrill(line, mode, &stats)
 		return
 	}
 
