@@ -48,20 +48,31 @@ type vibesEntry struct {
 	from  string
 }
 
+// VibesTolerance controls how close the estimate must be.
+type VibesTolerance int
+
+const (
+	VibesRough VibesTolerance = 25 // ±25% — magnitude + rough position
+	VibesClose VibesTolerance = 10 // ±10% — read the leading hex digit(s)
+	VibesTight VibesTolerance = 5  // ±5%  — almost exact
+	VibesExact VibesTolerance = 0  // exact match
+)
+
 // ApproxGenerator cycles through a varied real-world value pool without repeats.
 type ApproxGenerator struct {
-	pool    []vibesEntry
-	queue   []vibesEntry
-	rng     *rand.Rand
-	last    int
-	hasLast bool
+	pool      []vibesEntry
+	queue     []vibesEntry
+	rng       *rand.Rand
+	last      int
+	hasLast   bool
+	tolerance VibesTolerance
 }
 
 // NewApproxGenerator builds a generator with a broad real-world-flavoured pool.
 // No mode selection — the pool deliberately mixes nibbles, bytes, and 2-byte
 // values so every question feels like reading real data.
-func NewApproxGenerator(rng *rand.Rand) *ApproxGenerator {
-	g := &ApproxGenerator{rng: rng}
+func NewApproxGenerator(rng *rand.Rand, tol VibesTolerance) *ApproxGenerator {
+	g := &ApproxGenerator{rng: rng, tolerance: tol}
 	g.pool = buildVibesPool()
 	g.reshuffle()
 	return g
@@ -90,9 +101,14 @@ func (g *ApproxGenerator) Next() ApproxQuestion {
 	g.last = e.value
 	g.hasLast = true
 
-	tol := e.value / 4
-	if tol < 3 {
-		tol = 3
+	var tol int
+	if g.tolerance == VibesExact {
+		tol = 0
+	} else {
+		tol = e.value * int(g.tolerance) / 100
+		if tol < 2 {
+			tol = 2
+		}
 	}
 	return ApproxQuestion{Value: e.value, From: e.from, Tolerance: tol}
 }

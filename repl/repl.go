@@ -467,13 +467,20 @@ func runFlashcardDrill(line *liner.State, mode drill.Mode, conv drill.Conv, stat
 
 const vibesTimeLimit = 5 * time.Second
 
-func runApproxDrill(line *liner.State, stats *drill.Stats) {
+func runApproxDrill(line *liner.State, tol drill.VibesTolerance, stats *drill.Stats) {
 	rng := rand.New(rand.NewSource(time.Now().UnixNano()))
-	gen := drill.NewApproxGenerator(rng)
+	gen := drill.NewApproxGenerator(rng, tol)
 	correctStyle := color.New(color.FgGreen, color.Bold).SprintFunc()
 	var streak, bestStreak, nCorrect, nWrong int
 	fmt.Println()
-	fmt.Printf("  %s\n\n", dimGray("estimate decimal — within 25%, under 5s"))
+	var tolDesc string
+	switch tol {
+	case drill.VibesExact:
+		tolDesc = "exact match, under 5s"
+	default:
+		tolDesc = fmt.Sprintf("within %d%%, under 5s", int(tol))
+	}
+	fmt.Printf("  %s\n\n", dimGray(tolDesc))
 	for {
 		q := gen.Next()
 		fmt.Printf("  %s  →  ~dec\n", drillColorValue(q.From))
@@ -698,13 +705,42 @@ func runDrill(line *liner.State) {
 	}
 	game := strings.TrimSpace(gameRaw)
 
-	// Bit scan and vibes: no mode/conv selection needed.
+	// Bit scan: no mode/conv selection needed.
 	if game == "5" {
 		runBitScanDrill(line, &stats)
 		return
 	}
+
+	// Vibes: pick precision, then go.
 	if game == "3" {
-		runApproxDrill(line, &stats)
+		fmt.Println()
+		fmt.Println("  Precision:")
+		fmt.Println("    1) rough  ±25%  magnitude + gut feel")
+		fmt.Println("    2) close  ±10%  read the leading digit(s)")
+		fmt.Println("    3) tight  ±5%   almost exact")
+		fmt.Println("    4) exact  0     nail it")
+		fmt.Println()
+		tolRaw, err := line.Prompt("  precision [1-4]: ")
+		if err != nil || drillQuit(tolRaw) {
+			fmt.Println()
+			return
+		}
+		var tol drill.VibesTolerance
+		switch strings.TrimSpace(tolRaw) {
+		case "1":
+			tol = drill.VibesRough
+		case "2":
+			tol = drill.VibesClose
+		case "3":
+			tol = drill.VibesTight
+		case "4":
+			tol = drill.VibesExact
+		default:
+			fmt.Println(styleError("  invalid — enter 1, 2, 3, or 4"))
+			fmt.Println()
+			return
+		}
+		runApproxDrill(line, tol, &stats)
 		return
 	}
 
