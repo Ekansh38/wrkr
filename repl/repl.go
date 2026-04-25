@@ -465,22 +465,53 @@ func runFlashcardDrill(line *liner.State, mode drill.Mode, conv drill.Conv, stat
 	showDrillSummary(stats, nCorrect, nWrong, bestStreak, "flashcard")
 }
 
+const vibesTimeLimit = 5 * time.Second
+
 func runApproxDrill(line *liner.State, stats *drill.Stats) {
 	rng := rand.New(rand.NewSource(time.Now().UnixNano()))
 	gen := drill.NewApproxGenerator(rng)
 	correctStyle := color.New(color.FgGreen, color.Bold).SprintFunc()
 	var streak, bestStreak, nCorrect, nWrong int
 	fmt.Println()
-	fmt.Printf("  %s\n\n", dimGray("type your decimal estimate — within 25% counts"))
+	fmt.Printf("  %s\n\n", dimGray("estimate decimal — within 25%, under 5s"))
 	for {
 		q := gen.Next()
 		fmt.Printf("  %s  →  ~dec\n", drillColorValue(q.From))
+		t0 := time.Now()
 		ans, err := line.Prompt("  > ")
+		elapsed := time.Since(t0)
 		ans = strings.TrimSpace(ans)
 		if err != nil || drillQuit(ans) {
 			fmt.Println()
 			break
 		}
+
+		tookStr := dimGray(fmt.Sprintf("%.1fs", elapsed.Seconds()))
+
+		if elapsed > vibesTimeLimit {
+			// Too slow — auto-fail regardless of answer correctness.
+			prevStreak := streak
+			streak = 0
+			nWrong++
+			stats.Record(q.Value, "dec", false)
+			msg := fmt.Sprintf("too slow (%s) — vibes, not math", tookStr)
+			if prevStreak > 1 {
+				fmt.Printf("  %s  %s  %s  %s\n\n",
+					styleError("✗"),
+					boldWhite(fmt.Sprintf("%d", q.Value)),
+					dimGray(msg),
+					dimGray(fmt.Sprintf("(lost %d)", prevStreak)),
+				)
+			} else {
+				fmt.Printf("  %s  %s  %s\n\n",
+					styleError("✗"),
+					boldWhite(fmt.Sprintf("%d", q.Value)),
+					dimGray(msg),
+				)
+			}
+			continue
+		}
+
 		if q.Check(ans) {
 			streak++
 			nCorrect++
@@ -490,9 +521,9 @@ func runApproxDrill(line *liner.State, stats *drill.Stats) {
 			}
 			exact := dimGray(fmt.Sprintf("= %d", q.Value))
 			if streak > 1 {
-				fmt.Printf("  %s  %s  %s\n\n", correctStyle("✓"), exact, drillStreakStyle(streak))
+				fmt.Printf("  %s  %s  %s  %s\n\n", correctStyle("✓"), exact, tookStr, drillStreakStyle(streak))
 			} else {
-				fmt.Printf("  %s  %s\n\n", correctStyle("✓"), exact)
+				fmt.Printf("  %s  %s  %s\n\n", correctStyle("✓"), exact, tookStr)
 			}
 		} else {
 			prevStreak := streak
@@ -500,17 +531,19 @@ func runApproxDrill(line *liner.State, stats *drill.Stats) {
 			nWrong++
 			stats.Record(q.Value, "dec", false)
 			if prevStreak > 1 {
+				fmt.Printf("  %s  %s  %s  %s  %s\n\n",
+					styleError("✗"),
+					boldWhite(fmt.Sprintf("%d", q.Value)),
+					dimGray(fmt.Sprintf("(ok: %s)", q.RangeHint())),
+					tookStr,
+					dimGray(fmt.Sprintf("(lost %d)", prevStreak)),
+				)
+			} else {
 				fmt.Printf("  %s  %s  %s  %s\n\n",
 					styleError("✗"),
 					boldWhite(fmt.Sprintf("%d", q.Value)),
 					dimGray(fmt.Sprintf("(ok: %s)", q.RangeHint())),
-					dimGray(fmt.Sprintf("(lost %d)", prevStreak)),
-				)
-			} else {
-				fmt.Printf("  %s  %s  %s\n\n",
-					styleError("✗"),
-					boldWhite(fmt.Sprintf("%d", q.Value)),
-					dimGray(fmt.Sprintf("(ok: %s)", q.RangeHint())),
+					tookStr,
 				)
 			}
 		}
