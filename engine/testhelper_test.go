@@ -95,7 +95,7 @@ func evalStr(t *testing.T, input string) string {
 	if v, ok := res.(string); ok {
 		return v
 	}
-	// numeric — format as decimal string so callers can strcmp
+	// numeric - format as decimal string so callers can strcmp
 	switch v := res.(type) {
 	case float64:
 		return engine.FormatDecimal(v)

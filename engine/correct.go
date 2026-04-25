@@ -9,7 +9,7 @@ import (
 
 // internalCalcEnvNames are bitwise-rewriter targets injected into CalcEnv for
 // the evaluator's benefit. They work if typed directly but should not appear
-// in tab-completion or autocorrect suggestions — they are implementation detail.
+// in tab-completion or autocorrect suggestions - they are implementation detail.
 var internalCalcEnvNames = map[string]bool{
 	"band": true, "bor": true, "bxor": true,
 	"bnot": true, "blshift": true, "brshift": true,
@@ -17,7 +17,7 @@ var internalCalcEnvNames = map[string]bool{
 
 // GetValidTokens returns the names of all tokens currently known to CalcEnv.
 // Called once at startup and again after new user variables are defined.
-// Used by autocorrect (SanitizeInput) — includes all names so that a user who
+// Used by autocorrect (SanitizeInput) - includes all names so that a user who
 // somehow types an internal name can still have it corrected gracefully.
 func GetValidTokens() []string {
 	keys := make([]string, 0, len(CalcEnv))

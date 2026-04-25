@@ -18,7 +18,7 @@ type ApproxQuestion struct {
 // Check returns true if the answer is a plain decimal within tolerance.
 func (q ApproxQuestion) Check(answer string) bool {
 	s := strings.TrimSpace(answer)
-	// Only accept plain decimal — no hex/binary prefixes.
+	// Only accept plain decimal - no hex/binary prefixes.
 	if strings.HasPrefix(strings.ToLower(s), "0x") ||
 		strings.HasPrefix(strings.ToLower(s), "0b") {
 		return false
@@ -52,9 +52,9 @@ type vibesEntry struct {
 type VibesTolerance int
 
 const (
-	VibesRough VibesTolerance = 25 // ±25% — magnitude + rough position
-	VibesClose VibesTolerance = 10 // ±10% — read the leading hex digit(s)
-	VibesTight VibesTolerance = 5  // ±5%  — almost exact
+	VibesRough VibesTolerance = 25 // ±25% - magnitude + rough position
+	VibesClose VibesTolerance = 10 // ±10% - read the leading hex digit(s)
+	VibesTight VibesTolerance = 5  // ±5%  - almost exact
 	VibesExact VibesTolerance = 0  // exact match
 )
 
@@ -69,7 +69,7 @@ type ApproxGenerator struct {
 }
 
 // NewApproxGenerator builds a generator with a broad real-world-flavoured pool.
-// No mode selection — the pool deliberately mixes nibbles, bytes, and 2-byte
+// No mode selection - the pool deliberately mixes nibbles, bytes, and 2-byte
 // values so every question feels like reading real data.
 func NewApproxGenerator(rng *rand.Rand, tol VibesTolerance) *ApproxGenerator {
 	g := &ApproxGenerator{rng: rng, tolerance: tol}
@@ -130,7 +130,7 @@ func buildVibesPool() []vibesEntry {
 		}
 	}
 
-	// Nibbles as hex — the 16 base facts
+	// Nibbles as hex - the 16 base facts
 	for i := 1; i < 16; i++ {
 		addHex(i)
 	}
@@ -150,7 +150,7 @@ func buildVibesPool() []vibesEntry {
 		addHex(v)
 	}
 
-	// 1-byte patterns shown as binary — estimation from bit pattern
+	// 1-byte patterns shown as binary - estimation from bit pattern
 	for _, v := range []int{
 		0b10101010, 0b11110000, 0b00001111, 0b11001100,
 		0b10110100, 0b01101001, 0b11111110, 0b10000001,
@@ -168,7 +168,7 @@ func buildVibesPool() []vibesEntry {
 		addHex(v)
 	}
 
-	// Well-known port numbers — real data you'd see in logs
+	// Well-known port numbers - real data you'd see in logs
 	for _, v := range []int{
 		22, 25, 53, 80, 110, 143, 443, 465, 587,
 		993, 995, 1433, 1521, 3000, 3306, 3389,

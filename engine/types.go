@@ -8,7 +8,7 @@ import (
 )
 
 // CurrentTypeMode is the active integer-semantics mode.
-// "auto" = pure float64 math, no wrapping — the default for all users.
+// "auto" = pure float64 math, no wrapping - the default for all users.
 // Setting it to e.g. "u8" causes every numeric result to be wrapped
 // into the u8 range [0, 255] and overflow is flagged in the display.
 var CurrentTypeMode = "auto"
@@ -38,7 +38,7 @@ func typeIsSigned(mode string) bool {
 }
 
 // CastUnsigned truncates f to an N-bit unsigned integer, returning it as float64.
-// Negative values wrap (same as a C unsigned cast) — the two's complement bit
+// Negative values wrap (same as a C unsigned cast) - the two's complement bit
 // pattern is reinterpreted as unsigned.
 func CastUnsigned(f float64, bits int) float64 {
 	n := twosCompBig(f, bits)
@@ -159,7 +159,7 @@ var ClipboardEnabled = true
 // then reinterpreted as int64 via bit-pattern (int64(uint64(n))).  This matches
 // hardware: "0b111…111" (64 ones from bin64(-1)) → -1, while a short string like
 // "0b10101010" (8 bits, value 170) → 170.  No explicit width-based sign logic
-// needed — the uint64→int64 reinterpretation handles overflow naturally.
+// needed - the uint64→int64 reinterpretation handles overflow naturally.
 //
 // Strings with an explicit '-' prefix are negated after parsing.
 func parseStringAsInt64(s string) (int64, bool) {

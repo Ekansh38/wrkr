@@ -168,7 +168,7 @@ func TestRewrite_ParensGrouping(t *testing.T) {
 }
 
 func TestRewrite_ParensInside(t *testing.T) {
-	// Bitwise op inside grouping parens only — outer expression is just parens.
+	// Bitwise op inside grouping parens only - outer expression is just parens.
 	got := engine.RewriteBitwiseOps("(a & b)")
 	want := "(band(a, b))"
 	if got != want {
@@ -204,7 +204,7 @@ func TestRewrite_DoubleNot(t *testing.T) {
 // ── Logical operators pass through ───────────────────────────────────────────
 
 func TestRewrite_LogicalAnd_NotTouched(t *testing.T) {
-	// && must not be split into two & tokens — pass through unchanged.
+	// && must not be split into two & tokens - pass through unchanged.
 	in := "a && b"
 	got := engine.RewriteBitwiseOps(in)
 	if got != in {
@@ -232,7 +232,7 @@ func TestRewrite_FunctionArgWithBitwise(t *testing.T) {
 }
 
 func TestRewrite_FunctionTwoArgsWithBitwise(t *testing.T) {
-	// Each argument processed independently — comma not misread as expression.
+	// Each argument processed independently - comma not misread as expression.
 	got := engine.RewriteBitwiseOps("f(a | b, c & d)")
 	want := "f(bor(a, b), band(c, d))"
 	if got != want {
@@ -372,7 +372,7 @@ func TestEval_BitwiseDoesNotBreakLogical(t *testing.T) {
 	// Logical operators must still work (and return 0/1 in expr-lang/expr).
 	// expr-lang/expr evaluates "true && false" to false (bool).
 	// We only test that arithmetic && doesn't get mangled:
-	// This is a sanity check — if expr sees "a && b" and it compiles, we're fine.
+	// This is a sanity check - if expr sees "a && b" and it compiles, we're fine.
 	// We test via the pipeline rewriter directly.
 	in := "1 + 1"
 	got := engine.RewriteBitwiseOps(in)
@@ -476,7 +476,7 @@ func TestEval_NotOfShift(t *testing.T) {
 // but hex/bin/oct/bin32/etc return strings. Now CoerceToFloat handles the coercion.
 
 func TestEval_FormatFn_AndWithHex(t *testing.T) {
-	// hex(255) & 0x0F — hex() returns string, band() must coerce it
+	// hex(255) & 0x0F - hex() returns string, band() must coerce it
 	near(t, eval(t, "hex(255) & 0x0F"), 15, "hex(255) & 0x0F")
 }
 
@@ -503,13 +503,13 @@ func TestEval_FormatFn_ShiftWithHex(t *testing.T) {
 }
 
 func TestEval_FormatFn_Bin64AndSmall(t *testing.T) {
-	// bin64(-129) & bin64(100) — the user's original failing expression.
+	// bin64(-129) & bin64(100) - the user's original failing expression.
 	// -129 & 100 = 100 (since 100's bits are all within -129's set bits).
 	near(t, eval(t, "bin64(-129) & bin64(100)"), 100, "bin64(-129) & bin64(100)")
 }
 
 func TestEval_FormatFn_Bin64NegAndNeg(t *testing.T) {
-	// bin64(-1) & bin64(-2): precision test — previous code gave wrong answer
+	// bin64(-1) & bin64(-2): precision test - previous code gave wrong answer
 	// due to "0b111…111" overflowing float64 → MaxInt64.
 	near(t, eval(t, "bin64(-1) & bin64(-2)"), -2, "bin64(-1) & bin64(-2)")
 }

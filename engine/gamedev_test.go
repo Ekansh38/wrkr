@@ -63,7 +63,7 @@ func TestGame_IdleGame_PopulationGrowth(t *testing.T) {
 }
 
 func TestGame_Trig_SinCos_Identity(t *testing.T) {
-	// sin²(x) + cos²(x) = 1 for all x — verify floating point stays clean
+	// sin²(x) + cos²(x) = 1 for all x - verify floating point stays clean
 	got := eval(t, "sin(pi / 4)")
 	want := math.Sin(math.Pi / 4) // 0.7071067811865475
 	near(t, got, want, "sin(pi/4)")
@@ -72,7 +72,7 @@ func TestGame_Trig_SinCos_Identity(t *testing.T) {
 	wantC := math.Cos(math.Pi / 4)
 	near(t, gotC, wantC, "cos(pi/4)")
 
-	// sin² + cos² = 1 — use direct math, not eval, as the identity check
+	// sin² + cos² = 1 - use direct math, not eval, as the identity check
 	near(t, got*got+gotC*gotC, 1.0, "sin²+cos² Pythagorean identity")
 }
 

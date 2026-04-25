@@ -194,7 +194,7 @@ func FixImplicitMultiplication(input string) string {
 		numStr := parts[1]
 		unitStr := strings.ToLower(parts[2])
 
-		// Shield: "0" followed by b/x/o is a base prefix — never split it.
+		// Shield: "0" followed by b/x/o is a base prefix - never split it.
 		if (numStr == "0" || numStr == "-0" || numStr == "+0") &&
 			len(unitStr) > 0 && (unitStr[0] == 'b' || unitStr[0] == 'x' || unitStr[0] == 'o') {
 			return match
@@ -239,7 +239,7 @@ func DetectConversionTarget(input string) string {
 }
 
 // reSepStrip matches numeric literals that may contain _ separators.
-// Token-level: only matches things starting with a digit or 0x/0b/0o — never bare
+// Token-level: only matches things starting with a digit or 0x/0b/0o - never bare
 // identifiers like dead_beef.
 var reSepStrip = regexp.MustCompile(`(?i)\b(0x[0-9a-fA-F][0-9a-fA-F_]*|0b[01][01_]*|0o[0-7][0-7_]*|[0-9][0-9_]*(?:\.[0-9_]*)?(?:e[-+]?[0-9_]+)?)`)
 
@@ -293,7 +293,7 @@ func StripFormatWrappers(input string) string {
 			pos++
 		}
 		if depth != 0 {
-			// unmatched parens — bail out unchanged to avoid infinite loop
+			// unmatched parens - bail out unchanged to avoid infinite loop
 			return input
 		}
 		inner := input[openParen+1 : pos-1]

@@ -235,7 +235,7 @@ func TestParseWidthMode_Invalid(t *testing.T) {
 // ── Overflow protection (large floats) ──────────────────────────────────────
 
 func TestFormatHex_LargePositive_NoOverflow(t *testing.T) {
-	// 1e19 > MaxInt64 — previously caused undefined behaviour via int64(f).
+	// 1e19 > MaxInt64 - previously caused undefined behaviour via int64(f).
 	// With safeInt64, this clamps to MaxInt64 = 0x7FFFFFFFFFFFFFFF.
 	got := engine.FormatHex(1e19)
 	if got != "0x7FFFFFFFFFFFFFFF" {

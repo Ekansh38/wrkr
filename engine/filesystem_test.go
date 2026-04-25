@@ -3,7 +3,7 @@ package engine_test
 // Filesystem engineer perspective.
 //
 // Covers block accounting, inode ratios, RAID geometry, journal sizing,
-// and extent-tree depth — the day-to-day arithmetic of someone writing
+// and extent-tree depth - the day-to-day arithmetic of someone writing
 // or tuning a filesystem driver.
 
 import "testing"

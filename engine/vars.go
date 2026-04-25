@@ -39,7 +39,7 @@ func DeleteVar(name string) bool {
 }
 
 // SetLastResult stores the most recent numeric result as "_" in CalcEnv.
-// Not added to UserVars — ephemeral, not persisted, not shown in vars list.
+// Not added to UserVars - ephemeral, not persisted, not shown in vars list.
 func SetLastResult(val float64) {
 	CalcEnv["_"] = val
 }

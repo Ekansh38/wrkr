@@ -15,7 +15,7 @@ import "strings"
 //	~    bnot    highest (unary prefix)
 //
 // Arithmetic (+, -, *, /) is handled by expr-lang/expr and is treated as
-// opaque by this stage — it has higher precedence than all binary bitwise ops.
+// opaque by this stage - it has higher precedence than all binary bitwise ops.
 //
 // Examples:
 //
@@ -357,7 +357,7 @@ func bwRewriteNotAndParens(toks []bwTok) string {
 // An atom is one of:
 //   - Another ~: recurse (e.g. ~~x → bnot(bnot(x)))
 //   - A parenthesised group (recursively rewritten)
-//   - An identifier optionally followed by (...) — function call
+//   - An identifier optionally followed by (...) - function call
 //   - A numeric literal
 func bwConsumeAtom(toks []bwTok, start int) (string, int) {
 	origStart := start // remember position before whitespace skip
@@ -384,7 +384,7 @@ func bwConsumeAtom(toks []bwTok, start int) (string, int) {
 		return "(" + bwExpr(inner) + ")", skip + end - start + 1
 	}
 
-	// Identifier — check if it's a function call (ident immediately followed by '(')
+	// Identifier - check if it's a function call (ident immediately followed by '(')
 	if t.kind == bwIdent {
 		j := start + 1
 		for j < len(toks) && toks[j].kind == bwSpace {

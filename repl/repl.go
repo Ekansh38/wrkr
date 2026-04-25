@@ -21,7 +21,7 @@ import (
 )
 
 // containsFormatFn returns true if the expression contains a bare format-function call
-// (hex/bin/oct/dec and their width variants) — used to generate hints on compile errors.
+// (hex/bin/oct/dec and their width variants) - used to generate hints on compile errors.
 func containsFormatFn(s string) bool {
 	for _, fn := range []string{"hex(", "bin(", "oct(", "octal(", "dec(", "decimal("} {
 		if strings.Contains(s, fn) {
@@ -149,7 +149,7 @@ func printHelp(topic string) {
 		fmt.Println("    0b11110110 to s8 -> -10")
 		fmt.Println("    _ to u32         applies type to last result")
 		fmt.Println()
-		fmt.Println("  cast functions return float64 — compose with arithmetic:")
+		fmt.Println("  cast functions return float64 - compose with arithmetic:")
 		fmt.Println("    u8(200) + u8(100)    -> 44  (300 wrapped to u8)")
 		fmt.Println()
 		fmt.Println("  type mode is independent of format mode:")
@@ -191,14 +191,14 @@ func printHelp(topic string) {
 		fmt.Println()
 		fmt.Println("  settings are saved to ~/.wrkr_config.json")
 	case "drill":
-		fmt.Println("drill — binary/hex/decimal fluency trainer")
+		fmt.Println("drill - binary/hex/decimal fluency trainer")
 		fmt.Println()
 		fmt.Println("  drill    start an interactive session")
 		fmt.Println()
 		fmt.Println("  Games:")
 		fmt.Println("    1) convert    Q&A: type the conversion")
 		fmt.Println("    2) flashcard  see answer for 1.5s, then recall from memory")
-		fmt.Println("    3) vibes      pick the closest value — a, b, or c")
+		fmt.Println("    3) vibes      pick the closest value - a, b, or c")
 		fmt.Println("    4) sprint     60-second timed blitz")
 		fmt.Println("    5) bit scan   given a hex value, which bit position is set?")
 		fmt.Println()
@@ -212,7 +212,7 @@ func printHelp(topic string) {
 		fmt.Println("    hex:  0xF  or bare with a-f letter (F, b4)")
 		fmt.Println("    bin:  0b1010  or bare 0s and 1s (1010)")
 		fmt.Println("    dec:  plain digits (15, 255)")
-		fmt.Println("    bit:  plain number — 0 = LSB (e.g. 7)")
+		fmt.Println("    bit:  plain number - 0 = LSB (e.g. 7)")
 		fmt.Println()
 		fmt.Println("  Stats saved to ~/.wrkr_drill.json")
 		fmt.Println("  Recommended: nibble → hex until instant, powers → bin, byte → hex")
@@ -302,7 +302,7 @@ func drillColorBase(base string) string {
 	return boldWhite(base)
 }
 
-// drillStreakStyle colors the streak number — escalates as it grows.
+// drillStreakStyle colors the streak number - escalates as it grows.
 func drillStreakStyle(n int) string {
 	s := fmt.Sprintf("%d", n)
 	switch {
@@ -496,12 +496,12 @@ func runApproxDrill(line *liner.State, tol drill.VibesTolerance, stats *drill.St
 		tookStr := dimGray(fmt.Sprintf("%.1fs", elapsed.Seconds()))
 
 		if elapsed > vibesTimeLimit {
-			// Too slow — auto-fail regardless of answer correctness.
+			// Too slow - auto-fail regardless of answer correctness.
 			prevStreak := streak
 			streak = 0
 			nWrong++
 			stats.Record(q.Value, "dec", false)
-			msg := fmt.Sprintf("too slow (%s) — vibes, not math", tookStr)
+			msg := fmt.Sprintf("too slow (%s) - vibes, not math", tookStr)
 			if prevStreak > 1 {
 				fmt.Printf("  %s  %s  %s  %s\n\n",
 					styleError("✗"),
@@ -566,7 +566,7 @@ func runSprintDrill(line *liner.State, mode drill.Mode, conv drill.Conv, stats *
 	var nCorrect, nWrong int
 	start := time.Now()
 	fmt.Println()
-	fmt.Printf("  %s\n\n", dimGray("60 seconds — go!"))
+	fmt.Printf("  %s\n\n", dimGray("60 seconds - go!"))
 	for {
 		elapsed := time.Since(start)
 		if elapsed >= duration {
@@ -670,7 +670,7 @@ func runDrill(line *liner.State) {
 		if total > 0 {
 			pctStr = fmt.Sprintf(" (%d%%)", 100*ls.Correct/total)
 		}
-		fmt.Printf("  %s  last: %d/%d%s — %s\n",
+		fmt.Printf("  %s  last: %d/%d%s - %s\n",
 			dimGray("stats"),
 			ls.Correct, total, pctStr,
 			dimGray(ls.Game),
@@ -691,7 +691,7 @@ func runDrill(line *liner.State) {
 	fmt.Println("  Game:")
 	fmt.Println("    1) convert    binary ↔ hex ↔ decimal Q&A")
 	fmt.Println("    2) flashcard  see answer briefly, then recall")
-	fmt.Println("    3) vibes      multiple choice — which is closest?")
+	fmt.Println("    3) vibes      multiple choice - which is closest?")
 	fmt.Println("    4) sprint     60-second timed blitz")
 	fmt.Println("    5) bit scan   which bit position is set?")
 	fmt.Println()
@@ -736,7 +736,7 @@ func runDrill(line *liner.State) {
 		case "4":
 			tol = drill.VibesExact
 		default:
-			fmt.Println(styleError("  invalid — enter 1, 2, 3, or 4"))
+			fmt.Println(styleError("  invalid - enter 1, 2, 3, or 4"))
 			fmt.Println()
 			return
 		}
@@ -760,7 +760,7 @@ func runDrill(line *liner.State) {
 	}
 	mode, ok := parseDrillMode(modeRaw)
 	if !ok {
-		fmt.Println(styleError("  invalid mode — enter 1, 2, 3, or 4"))
+		fmt.Println(styleError("  invalid mode - enter 1, 2, 3, or 4"))
 		fmt.Println()
 		return
 	}
@@ -773,7 +773,7 @@ func runDrill(line *liner.State) {
 	}
 	conv, ok := parseDrillConv(convRaw)
 	if !ok {
-		fmt.Println(styleError("  invalid — enter h, b, or d"))
+		fmt.Println(styleError("  invalid - enter h, b, or d"))
 		fmt.Println()
 		return
 	}
@@ -786,7 +786,7 @@ func runDrill(line *liner.State) {
 	case "4":
 		runSprintDrill(line, mode, conv, &stats)
 	default:
-		fmt.Println(styleError("  invalid game — enter 1–5"))
+		fmt.Println(styleError("  invalid game - enter 1–5"))
 		fmt.Println()
 	}
 }
@@ -1061,7 +1061,7 @@ func Run() {
 			continue
 		}
 
-		// :e — open expression(s) in $EDITOR. Each non-empty line runs as a
+		// :e - open expression(s) in $EDITOR. Each non-empty line runs as a
 		// separate command so you can chain assignments and expressions.
 		if lowerInput == ":e" {
 			var histBuf bytes.Buffer

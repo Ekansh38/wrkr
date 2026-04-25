@@ -57,7 +57,7 @@ func TestSystems_HexRegisterValue(t *testing.T) {
 }
 
 func TestSystems_LogBase2_BlockIndex(t *testing.T) {
-	// log2(4096) = 12 — number of bits needed to address a 4 KB page offset.
+	// log2(4096) = 12 - number of bits needed to address a 4 KB page offset.
 	near(t, eval(t, "log2(4096)"), 12, "log2(4096) = 12 bits")
 }
 

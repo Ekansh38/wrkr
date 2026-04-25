@@ -2,10 +2,10 @@
 //
 // Three focused modes build real-world mental fluency:
 //
-//	nibble  — 0–15, all conversions. Master these 16 facts first.
-//	powers  — 2^0 to 2^15 in any base. Essential for fast decomposition.
-//	byte    — 0–255, bin↔hex via two nibbles.
-//	random  — curated mix of all three.
+//	nibble  - 0–15, all conversions. Master these 16 facts first.
+//	powers  - 2^0 to 2^15 in any base. Essential for fast decomposition.
+//	byte    - 0–255, bin↔hex via two nibbles.
+//	random  - curated mix of all three.
 package drill
 
 import (
@@ -171,7 +171,7 @@ func (g *Generator) makeQuestion(val int) Question {
 	case ConvToHex:
 		switch {
 		case g.mode == ModePowers:
-			from = fmtDec(val) // "4096 → hex" — learn the hex pattern
+			from = fmtDec(val) // "4096 → hex" - learn the hex pattern
 		case g.mode == ModeRandom && isPowerOf2(val):
 			from = fmtDec(val)
 		default:
@@ -181,7 +181,7 @@ func (g *Generator) makeQuestion(val int) Question {
 	case ConvToBin:
 		switch {
 		case g.mode == ModePowers:
-			from = fmtDec(val) // "32 → bin" — learn which bit is set
+			from = fmtDec(val) // "32 → bin" - learn which bit is set
 		case g.mode == ModeRandom && isPowerOf2(val):
 			from = fmtDec(val)
 		default:
@@ -191,7 +191,7 @@ func (g *Generator) makeQuestion(val int) Question {
 	case ConvToDec:
 		switch {
 		case g.mode == ModePowers:
-			from = fmtHex(val) // "0x400 → dec" — recognise hex powers
+			from = fmtHex(val) // "0x400 → dec" - recognise hex powers
 		case g.mode == ModeRandom && isPowerOf2(val):
 			from = fmtHex(val)
 		default:
@@ -204,7 +204,7 @@ func (g *Generator) makeQuestion(val int) Question {
 		}
 
 	case ConvToBitPos:
-		// Show hex — most practical (reading register values is usually hex)
+		// Show hex - most practical (reading register values is usually hex)
 		from = fmtHex(val)
 	}
 
@@ -283,7 +283,7 @@ func adaptiveBinWidth(mode Mode, val int) int {
 		}
 		return 0
 	}
-	return 0 // ModePowers: natural width — answer is always a single 1-bit
+	return 0 // ModePowers: natural width - answer is always a single 1-bit
 }
 
 func isPowerOf2(v int) bool {
@@ -319,7 +319,7 @@ func parseAnswerInBase(s, base string) (int, bool) {
 		raw := strings.TrimPrefix(low, "0x")
 		v, err := strconv.ParseInt(raw, 16, 64)
 		return int(v), err == nil
-	default: // dec, bit — plain decimal integer
+	default: // dec, bit - plain decimal integer
 		v, err := strconv.ParseInt(s, 10, 64)
 		return int(v), err == nil
 	}

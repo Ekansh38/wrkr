@@ -13,10 +13,10 @@ var CurrentMode = "dec"
 
 // Display/clipboard formatting settings.
 //
-//   GroupingDisplay   — add _ separators in terminal output (e.g. 1_048_576, 0b1111_1011)
-//   GroupingClipboard — add _ separators in clipboard copy
-//   PrefixDisplay     — show 0x/0b/0o prefix in terminal output
-//   PrefixClipboard   — show 0x/0b/0o prefix in clipboard copy
+//   GroupingDisplay   - add _ separators in terminal output (e.g. 1_048_576, 0b1111_1011)
+//   GroupingClipboard - add _ separators in clipboard copy
+//   PrefixDisplay     - show 0x/0b/0o prefix in terminal output
+//   PrefixClipboard   - show 0x/0b/0o prefix in clipboard copy
 var GroupingDisplay = true
 var GroupingClipboard = false
 var PrefixDisplay = true
@@ -208,7 +208,7 @@ func twosCompBig(f float64, bits int) *big.Int {
 		pow := new(big.Int).Lsh(big.NewInt(1), uint(bits))
 		n.Add(pow, n)
 	}
-	// Mask to N bits — handles positive overflow (e.g. 300 in 8-bit → 44).
+	// Mask to N bits - handles positive overflow (e.g. 300 in 8-bit → 44).
 	mask := new(big.Int).Sub(new(big.Int).Lsh(big.NewInt(1), uint(bits)), big.NewInt(1))
 	return n.And(n, mask)
 }

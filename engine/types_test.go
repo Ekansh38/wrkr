@@ -99,7 +99,7 @@ func TestCastSigned_Negative(t *testing.T) {
 			t.Errorf("CastSigned(-1, %d) = %v, want -1", bits, got)
 		}
 	}
-	// -128 is s8 min — no wrapping
+	// -128 is s8 min - no wrapping
 	got := engine.CastSigned(-128, 8)
 	if got != -128 {
 		t.Errorf("CastSigned(-128, 8) = %v, want -128", got)
@@ -299,7 +299,7 @@ func TestParseResultString_Oct(t *testing.T) {
 }
 
 func TestParseResultString_WithLabel(t *testing.T) {
-	// Labels like "1024 MB", "8388608 bits" — strip the label, parse the number.
+	// Labels like "1024 MB", "8388608 bits" - strip the label, parse the number.
 	cases := []struct{ input string; want float64 }{
 		{"1024 MB", 1024},
 		{"8388608 bits", 8388608},
@@ -465,7 +465,7 @@ func TestProfession_EmbeddedDev_RegisterValue(t *testing.T) {
 }
 
 func TestProfession_EmbeddedDev_SaturatingAdd(t *testing.T) {
-	// Clamp to u8 range: min(200 + 100, 255) — brute force vs wrapping
+	// Clamp to u8 range: min(200 + 100, 255) - brute force vs wrapping
 	got := eval(t, "u8(200 + 100)")
 	near(t, got, 44, "u8(300) wraps to 44")
 }
@@ -498,7 +498,7 @@ func TestProfession_Systems_BlockCount(t *testing.T) {
 }
 
 func TestProfession_Systems_TypedAddress(t *testing.T) {
-	// 32-bit address: 0x1234ABCD — what's it as a signed s32?
+	// 32-bit address: 0x1234ABCD - what's it as a signed s32?
 	got := eval(t, "0x1234ABCD to s32")
 	near(t, got, 0x1234ABCD, "positive 32-bit address stays positive in s32")
 }
@@ -581,7 +581,7 @@ func TestApplyTypeMode_S128_NegativeOne(t *testing.T) {
 	}
 }
 
-// Pipeline: "_ to dec" — identifier on left side (regression test for _ bug)
+// Pipeline: "_ to dec" - identifier on left side (regression test for _ bug)
 func TestPipeline_UnderscoreToFormat(t *testing.T) {
 	// Seed _ with 255
 	engine.SetLastResult(255)

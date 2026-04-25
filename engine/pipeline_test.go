@@ -40,7 +40,7 @@ func TestFixNakedBases_NoDoublePrefix_Oct(t *testing.T) {
 	}
 }
 
-// "to bin" must not become "0bto" — regression from the 'to' keyword guard fix.
+// "to bin" must not become "0bto" - regression from the 'to' keyword guard fix.
 func TestFixNakedBases_ToKeyword_NotEaten_Bin(t *testing.T) {
 	got := engine.FixNakedBases("255 to bin")
 	if strings.Contains(got, "0bto") {
@@ -77,7 +77,7 @@ func TestFixNakedBases_Natural_Oct(t *testing.T) {
 	}
 }
 
-// ── Base conversions — all three forms end-to-end ────────────────────────────
+// ── Base conversions - all three forms end-to-end ────────────────────────────
 
 // Function form.
 func TestBaseConv_Fn_Hex(t *testing.T) {
@@ -129,7 +129,7 @@ func TestBaseConv_To_Dec_FromHex(t *testing.T) {
 	}
 }
 
-// Annotated source form — the main bug that was fixed.
+// Annotated source form - the main bug that was fixed.
 func TestBaseConv_Annotated_HexToBin(t *testing.T) {
 	// 0x123 = 291 decimal = 0b100100011
 	if got := evalStr(t, "0x123 hex to bin"); got != "0b100100011" {
@@ -164,7 +164,7 @@ func TestBaseConv_AllFormsEquivalent(t *testing.T) {
 }
 
 func TestBaseConv_FuncCall_ToDec(t *testing.T) {
-	// "s16(0b1000010001000100) to dec" must not error — funcCallPat in lhsPat covers this.
+	// "s16(0b1000010001000100) to dec" must not error - funcCallPat in lhsPat covers this.
 	got := evalStr(t, "s16(0b1000010001000100) to dec")
 	if got != "-31676" {
 		t.Errorf("s16(...) to dec: got %q, want -31676", got)
@@ -359,7 +359,7 @@ func TestStripSep_Hex(t *testing.T) {
 }
 
 func TestStripSep_PreservesIdentifier(t *testing.T) {
-	// dead_beef is a variable name, not a numeric literal — must not be touched.
+	// dead_beef is a variable name, not a numeric literal - must not be touched.
 	got := engine.StripNumericSeparators("dead_beef")
 	if got != "dead_beef" {
 		t.Errorf("StripNumericSeparators(dead_beef) = %q, want dead_beef unchanged", got)
@@ -534,12 +534,12 @@ func TestEval_BinTimesTwo(t *testing.T) {
 
 func TestEval_HexComparison(t *testing.T) {
 	// hex(255) == 0xFF should evaluate (255 == 255 = true → result 1 from ternary not tested here)
-	// Just verify it doesn't error — we can't easily test bool in eval(), so use arithmetic
+	// Just verify it doesn't error - we can't easily test bool in eval(), so use arithmetic
 	near(t, eval(t, "hex(100) + hex(56)"), 156, "hex(100) + hex(56)")
 }
 
 func TestEval_U8OfHex(t *testing.T) {
-	// u8(hex(300)) — hex is stripped, u8(300) = 44
+	// u8(hex(300)) - hex is stripped, u8(300) = 44
 	near(t, eval(t, "u8(hex(300))"), 44, "u8(hex(300))")
 }
 

@@ -220,7 +220,7 @@ func TestFormat_SmartHint_SilentForCancelledUnits(t *testing.T) {
 }
 
 func TestFormat_SizeMode_NoExcessDecimals(t *testing.T) {
-	// 19191919 bytes ≈ 18.3028 MB — must not produce 18.302840232849xxx
+	// 19191919 bytes ≈ 18.3028 MB - must not produce 18.302840232849xxx
 	coef, label := engine.HumanReadableSize(19191919)
 	if label != "MB" {
 		t.Errorf("label: got %q, want MB", label)

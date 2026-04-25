@@ -32,7 +32,7 @@ func TestParseAnswer(t *testing.T) {
 		// binary with prefix
 		{"0b1111", 15, true},
 		{"0B10110100", 180, true},
-		// ambiguous bare decimal digits — treated as decimal, not hex
+		// ambiguous bare decimal digits - treated as decimal, not hex
 		{"10", 10, true},
 		{"9", 9, true},
 		// empty / junk
