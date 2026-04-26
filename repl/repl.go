@@ -320,6 +320,201 @@ func drillStreakStyle(n int) string {
 	}
 }
 
+func drillClear() {
+	fmt.Print("\033[2J\033[H")
+}
+
+func drillModeDesc(mode drill.Mode, conv drill.Conv) string {
+	var modeName string
+	switch mode {
+	case drill.ModeNibble:
+		modeName = "nibble"
+	case drill.ModePowers:
+		modeName = "powers"
+	case drill.ModeByte:
+		modeName = "byte"
+	case drill.ModeRandom:
+		modeName = "random"
+	}
+	var convName string
+	switch conv {
+	case drill.ConvToHex:
+		convName = "hex"
+	case drill.ConvToBin:
+		convName = "bin"
+	case drill.ConvToDec:
+		convName = "dec"
+	}
+	return modeName + " -> " + convName
+}
+
+func drillShowHeader(game, detail string, nCorrect, nWrong, streak int) {
+	correctStyle := color.New(color.FgGreen, color.Bold).SprintFunc()
+	header := fmt.Sprintf("  %s", boldWhite(game))
+	if detail != "" {
+		header += fmt.Sprintf("  %s", dimGray(detail))
+	}
+	if nCorrect > 0 || nWrong > 0 {
+		header += fmt.Sprintf("    %s %d  %s %d", correctStyle("✓"), nCorrect, styleError("✗"), nWrong)
+		if streak > 0 {
+			header += fmt.Sprintf("  streak %s", drillStreakStyle(streak))
+		}
+	}
+	fmt.Println(header)
+	fmt.Println(dimGray("  " + strings.Repeat("-", 40)))
+	fmt.Println()
+}
+
+func drillTip(game string, mode drill.Mode, conv drill.Conv) string {
+	var b strings.Builder
+
+	switch game {
+	case "vibes":
+		b.WriteString("  Hex magnitude estimation:\n\n")
+		b.WriteString("  Scale landmarks:\n")
+		b.WriteString("    0x10    =  16        0x100   =  256\n")
+		b.WriteString("    0x1000  =  4096      0x10000 =  65536\n\n")
+		b.WriteString("  Leading digit gives the ballpark:\n")
+		b.WriteString("    0x3xxx  ~  3 * 4096  ~  12000\n\n")
+		b.WriteString("  Strategy:\n")
+		b.WriteString("    rough  - nail the order of magnitude\n")
+		b.WriteString("    close  - convert the leading 1-2 digits\n")
+		b.WriteString("    tight  - full nibble-by-nibble read\n")
+	case "bitscan":
+		b.WriteString("  Hex -> bit position (0 = LSB):\n\n")
+		b.WriteString("    0x1=0   0x2=1   0x4=2   0x8=3\n")
+		b.WriteString("    0x10=4  0x20=5  0x40=6  0x80=7\n")
+		b.WriteString("    0x100=8   0x200=9   0x400=10  0x800=11\n")
+		b.WriteString("    0x1000=12 0x2000=13 0x4000=14 0x8000=15\n\n")
+		b.WriteString("  Shortcut: count trailing hex zeros * 4, then bit pos in leading digit.\n")
+		b.WriteString("  0x40 -> 1 trailing zero (4 bits) + 4=bit2 -> bit 6.\n")
+	case "hexops":
+		b.WriteString("  Hex arithmetic & bitwise:\n\n")
+		b.WriteString("  Addition: carry at 0x10, not 10.\n")
+		b.WriteString("    0x9 + 0x8 = 0x11   (9+8=17)\n")
+		b.WriteString("    0xA + 0x7 = 0x11   (10+7=17)\n\n")
+		b.WriteString("  AND: isolate bits.\n")
+		b.WriteString("    0xAB & 0x0F = 0x0B  (low nibble)\n")
+		b.WriteString("    0xAB & 0xF0 = 0xA0  (high nibble)\n\n")
+		b.WriteString("  OR: combine bits.\n")
+		b.WriteString("    0xA0 | 0x0B = 0xAB\n")
+		b.WriteString("    0xF0 | 0x0F = 0xFF\n\n")
+		b.WriteString("  XOR: toggle bits.\n")
+		b.WriteString("    n ^ n = 0    n ^ 0 = n    0xFF ^ 0xAA = 0x55\n")
+	default: // convert, flashcard, sprint
+		switch mode {
+		case drill.ModeNibble:
+			switch conv {
+			case drill.ConvToHex:
+				b.WriteString("  nibble -> hex  (4 bits = 1 hex digit)\n\n")
+				b.WriteString("  Memory table:\n")
+				b.WriteString("    0000=0  0001=1  0010=2  0011=3\n")
+				b.WriteString("    0100=4  0101=5  0110=6  0111=7\n")
+				b.WriteString("    1000=8  1001=9  1010=A  1011=B\n")
+				b.WriteString("    1100=C  1101=D  1110=E  1111=F\n\n")
+				b.WriteString("  Top bit set -> value >= 8 (letters 8-F).\n")
+				b.WriteString("  A=1010 (alternating), C=1100 (top 2 bits), F=1111 (all ones).\n")
+			case drill.ConvToBin:
+				b.WriteString("  nibble -> bin  (hex digit -> 4 bits)\n\n")
+				b.WriteString("  Subtract powers from MSB down:\n")
+				b.WriteString("  >= 8? bit3=1. >= 4? bit2=1. >= 2? bit1=1. >= 1? bit0=1.\n\n")
+				b.WriteString("  Key patterns:\n")
+				b.WriteString("    0x8=1000  0x4=0100  0xC=1100\n")
+				b.WriteString("    0xA=1010  0x5=0101  0xF=1111\n\n")
+				b.WriteString("  A (10=8+2) -> 1010.  B (11=8+2+1) -> 1011.\n")
+			case drill.ConvToDec:
+				b.WriteString("  nibble -> dec\n\n")
+				b.WriteString("  Hex letters:  A=10  B=11  C=12  D=13  E=14  F=15\n\n")
+				b.WriteString("  From binary: sum set-bit place values.\n")
+				b.WriteString("  Place values: bit3=8, bit2=4, bit1=2, bit0=1.\n")
+				b.WriteString("  1011 = 8+2+1 = 11.    1101 = 8+4+1 = 13.\n")
+			}
+		case drill.ModePowers:
+			switch conv {
+			case drill.ConvToHex:
+				b.WriteString("  powers -> hex\n\n")
+				b.WriteString("  Digit cycles 1,2,4,8 and shifts left every 4 exponents:\n\n")
+				b.WriteString("    2^0=0x1    2^1=0x2    2^2=0x4    2^3=0x8\n")
+				b.WriteString("    2^4=0x10   2^5=0x20   2^6=0x40   2^7=0x80\n")
+				b.WriteString("    2^8=0x100  2^9=0x200  2^10=0x400 2^11=0x800\n")
+				b.WriteString("    2^12=0x1000  ...      2^15=0x8000\n\n")
+				b.WriteString("  Rule: n/4 = trailing hex zeros.  n%4 -> digit: 0->1, 1->2, 2->4, 3->8.\n")
+			case drill.ConvToBin:
+				b.WriteString("  powers -> bin\n\n")
+				b.WriteString("  2^n = single 1-bit at position n (0=LSB).\n")
+				b.WriteString("  Write \"1\" followed by n zeros.\n\n")
+				b.WriteString("    2^0  = 1\n")
+				b.WriteString("    2^4  = 10000       (4 zeros)\n")
+				b.WriteString("    2^8  = 100000000   (8 zeros)\n")
+				b.WriteString("    2^10 = 10000000000 (10 zeros)\n\n")
+				b.WriteString("  Sanity check: count the zeros = exponent.\n")
+			case drill.ConvToDec:
+				b.WriteString("  powers -> dec\n\n")
+				b.WriteString("  Hex power -> decimal. Each step up = double.\n\n")
+				b.WriteString("    0x1=1   0x2=2   0x4=4   0x8=8\n")
+				b.WriteString("    0x10=16  0x20=32  0x40=64  0x80=128\n")
+				b.WriteString("    0x100=256  0x200=512  0x400=1024\n")
+				b.WriteString("    0x1000=4096  ...  0x8000=32768\n\n")
+				b.WriteString("  Anchors: 0x400=1024 (1Ki), 0x100000=1Mi (1048576).\n")
+			}
+		case drill.ModeByte:
+			switch conv {
+			case drill.ConvToHex:
+				b.WriteString("  byte -> hex\n\n")
+				b.WriteString("  Split 8 bits into two nibbles, convert each.\n")
+				b.WriteString("  0b10110011 -> 1011|0011 -> B|3 -> 0xB3\n\n")
+				b.WriteString("  High nibble = bits[7:4].  Low nibble = bits[3:0].\n\n")
+				b.WriteString("  Common patterns:\n")
+				b.WriteString("    10000000=0x80  11110000=0xF0  00001111=0x0F\n")
+				b.WriteString("    11111111=0xFF  10101010=0xAA  01010101=0x55\n")
+			case drill.ConvToBin:
+				b.WriteString("  byte -> bin\n\n")
+				b.WriteString("  Expand each hex digit to 4 bits, concatenate.\n")
+				b.WriteString("  0xAB -> A=1010, B=1011 -> 0b10101011\n\n")
+				b.WriteString("  Upper nibble patterns:\n")
+				b.WriteString("    8=1000  9=1001  A=1010  B=1011\n")
+				b.WriteString("    C=1100  D=1101  E=1110  F=1111\n\n")
+				b.WriteString("  Common: 0xFF=11111111  0x80=10000000  0xAA=10101010\n")
+			case drill.ConvToDec:
+				b.WriteString("  byte -> dec\n\n")
+				b.WriteString("  From hex: high*16 + low.\n")
+				b.WriteString("  0xAB = 10*16+11 = 160+11 = 171\n\n")
+				b.WriteString("  From binary: sum set-bit place values.\n")
+				b.WriteString("  0b10110011 = 128+32+16+2+1 = 179\n\n")
+				b.WriteString("  Landmarks:\n")
+				b.WriteString("    0x80=128  0xC0=192  0xFF=255  0xF0=240\n")
+				b.WriteString("    0xAA=170  0x55=85   0x0F=15   0x7F=127\n")
+			}
+		case drill.ModeRandom:
+			switch conv {
+			case drill.ConvToHex:
+				b.WriteString("  random -> hex\n\n")
+				b.WriteString("  Powers of 2 (decimal input): hex shifts every 4 exponents.\n")
+				b.WriteString("  32=0x20, 64=0x40, 128=0x80, 1024=0x400.\n\n")
+				b.WriteString("  Binary input: split into nibbles, convert each.\n")
+				b.WriteString("  Top bit set -> value >= 8 -> hex digit 8-F.\n\n")
+				b.WriteString("  Common masks: 0xFF, 0xF0, 0x0F, 0x80, 0xAA, 0x55.\n")
+			case drill.ConvToBin:
+				b.WriteString("  random -> bin\n\n")
+				b.WriteString("  Powers of 2 (decimal input): single 1-bit at position n.\n")
+				b.WriteString("  32=bit5=100000, 128=bit7=10000000, 1024=bit10.\n\n")
+				b.WriteString("  Hex input: expand each digit to 4 bits.\n")
+				b.WriteString("  0xF0=11110000  0xAA=10101010  0x55=01010101\n\n")
+				b.WriteString("  Alternating pattern: A=1010, 5=0101.\n")
+			case drill.ConvToDec:
+				b.WriteString("  random -> dec\n\n")
+				b.WriteString("  Powers: 2^10=1024, 2^8=256, 2^4=16. Double each step.\n\n")
+				b.WriteString("  From hex: high*16 + low.\n")
+				b.WriteString("  0xAA = 10*16+10 = 170.  0xF0 = 15*16 = 240.\n\n")
+				b.WriteString("  From binary: sum set-bit values (128,64,32,16,8,4,2,1).\n")
+				b.WriteString("  10101010 = 128+32+8+2 = 170.\n")
+			}
+		}
+	}
+
+	return b.String()
+}
+
 func parseDrillMode(raw string) (drill.Mode, bool) {
 	switch strings.TrimSpace(raw) {
 	case "1":
@@ -368,105 +563,155 @@ func showDrillSummary(stats *drill.Stats, nCorrect, nWrong, bestStreak int, game
 }
 
 func runConvertDrill(line *liner.State, mode drill.Mode, conv drill.Conv, stats *drill.Stats) {
+	const clearEvery = 5
 	rng := rand.New(rand.NewSource(time.Now().UnixNano()))
 	gen := drill.NewGenerator(mode, conv, rng)
 	gen.ApplyWeakSpotBias(stats.MissedCounts)
 	correctStyle := color.New(color.FgGreen, color.Bold).SprintFunc()
 	var streak, bestStreak, nCorrect, nWrong int
-	fmt.Println()
+	detail := drillModeDesc(mode, conv)
+	qNum := 0
+
+outer:
 	for {
 		q := gen.Next()
-		fmt.Printf("  %s  →  %s\n", drillColorValue(q.From), drillColorBase(q.ToBase))
-		ans, err := line.Prompt("  > ")
-		ans = strings.TrimSpace(ans)
-		if err != nil || drillQuit(ans) {
-			fmt.Println()
-			break
+		qNum++
+
+		if qNum == 1 {
+			drillClear()
+			drillShowHeader("convert", detail, 0, 0, 0)
+			fmt.Print(drillTip("convert", mode, conv))
+			fmt.Printf("\n  %s\n\n", dimGray("? for tips    :q to quit"))
+		} else if qNum%clearEvery == 1 {
+			drillClear()
+			drillShowHeader("convert", detail, nCorrect, nWrong, streak)
 		}
-		if q.Check(ans) {
-			streak++
-			nCorrect++
-			stats.Record(q.Value, q.ToBase, true)
-			if streak > bestStreak {
-				bestStreak = streak
+
+		for {
+			fmt.Printf("  %s  %s  →  %s\n", dimGray(fmt.Sprintf("#%d", qNum)), drillColorValue(q.From), drillColorBase(q.ToBase))
+			ans, err := line.Prompt("  > ")
+			ans = strings.TrimSpace(ans)
+			if err != nil || drillQuit(ans) {
+				fmt.Println()
+				break outer
 			}
-			if streak > 1 {
-				fmt.Printf("  %s  %s\n\n", correctStyle("✓"), drillStreakStyle(streak))
+			if ans == "?" {
+				fmt.Println()
+				fmt.Print(drillTip("convert", mode, conv))
+				fmt.Printf("\n  %s\n\n", dimGray("? for tips    :q to quit"))
+				continue
+			}
+			if q.Check(ans) {
+				streak++
+				nCorrect++
+				stats.Record(q.Value, q.ToBase, true)
+				if streak > bestStreak {
+					bestStreak = streak
+				}
+				if streak > 1 {
+					fmt.Printf("  %s  %s\n\n", correctStyle("✓"), drillStreakStyle(streak))
+				} else {
+					fmt.Printf("  %s\n\n", correctStyle("✓"))
+				}
 			} else {
-				fmt.Printf("  %s\n\n", correctStyle("✓"))
+				prevStreak := streak
+				streak = 0
+				nWrong++
+				stats.Record(q.Value, q.ToBase, false)
+				if prevStreak > 1 {
+					fmt.Printf("  %s  %s  %s\n\n",
+						styleError("✗"),
+						drillColorValue(q.CorrectAnswer()),
+						dimGray(fmt.Sprintf("(lost %d)", prevStreak)),
+					)
+				} else {
+					fmt.Printf("  %s  %s\n\n",
+						styleError("✗"),
+						drillColorValue(q.CorrectAnswer()),
+					)
+				}
 			}
-		} else {
-			prevStreak := streak
-			streak = 0
-			nWrong++
-			stats.Record(q.Value, q.ToBase, false)
-			if prevStreak > 1 {
-				fmt.Printf("  %s  %s  %s\n\n",
-					styleError("✗"),
-					drillColorValue(q.CorrectAnswer()),
-					dimGray(fmt.Sprintf("(lost %d)", prevStreak)),
-				)
-			} else {
-				fmt.Printf("  %s  %s\n\n",
-					styleError("✗"),
-					drillColorValue(q.CorrectAnswer()),
-				)
-			}
+			break
 		}
 	}
 	showDrillSummary(stats, nCorrect, nWrong, bestStreak, "convert")
 }
 
 func runFlashcardDrill(line *liner.State, mode drill.Mode, conv drill.Conv, stats *drill.Stats) {
+	const clearEvery = 5
 	rng := rand.New(rand.NewSource(time.Now().UnixNano()))
 	gen := drill.NewGenerator(mode, conv, rng)
 	gen.ApplyWeakSpotBias(stats.MissedCounts)
 	correctStyle := color.New(color.FgGreen, color.Bold).SprintFunc()
 	var streak, bestStreak, nCorrect, nWrong int
-	fmt.Println()
+	detail := drillModeDesc(mode, conv)
+	qNum := 0
+
+outer:
 	for {
 		q := gen.Next()
-		// Show question + answer for 1.5 seconds, then erase the answer line.
-		fmt.Printf("  %s  →  %s:  %s\n",
-			drillColorValue(q.From), drillColorBase(q.ToBase), drillColorValue(q.CorrectAnswer()))
-		time.Sleep(1500 * time.Millisecond)
-		fmt.Print("\033[1A\033[2K") // cursor up 1, clear line
-		fmt.Printf("  %s  →  %s\n", drillColorValue(q.From), drillColorBase(q.ToBase))
-		ans, err := line.Prompt("  > ")
-		ans = strings.TrimSpace(ans)
-		if err != nil || drillQuit(ans) {
-			fmt.Println()
-			break
+		qNum++
+
+		if qNum == 1 {
+			drillClear()
+			drillShowHeader("flashcard", detail, 0, 0, 0)
+			fmt.Print(drillTip("flashcard", mode, conv))
+			fmt.Printf("\n  %s\n\n", dimGray("? for tips    :q to quit"))
+		} else if qNum%clearEvery == 1 {
+			drillClear()
+			drillShowHeader("flashcard", detail, nCorrect, nWrong, streak)
 		}
-		if q.Check(ans) {
-			streak++
-			nCorrect++
-			stats.Record(q.Value, q.ToBase, true)
-			if streak > bestStreak {
-				bestStreak = streak
+
+		for {
+			// Show question + answer for 1.5 seconds, then erase the answer line.
+			fmt.Printf("  %s  %s  →  %s:  %s\n",
+				dimGray(fmt.Sprintf("#%d", qNum)), drillColorValue(q.From), drillColorBase(q.ToBase), drillColorValue(q.CorrectAnswer()))
+			time.Sleep(1500 * time.Millisecond)
+			fmt.Print("\033[1A\033[2K") // cursor up 1, clear line
+			fmt.Printf("  %s  %s  →  %s\n", dimGray(fmt.Sprintf("#%d", qNum)), drillColorValue(q.From), drillColorBase(q.ToBase))
+			ans, err := line.Prompt("  > ")
+			ans = strings.TrimSpace(ans)
+			if err != nil || drillQuit(ans) {
+				fmt.Println()
+				break outer
 			}
-			if streak > 1 {
-				fmt.Printf("  %s  %s\n\n", correctStyle("✓"), drillStreakStyle(streak))
+			if ans == "?" {
+				fmt.Println()
+				fmt.Print(drillTip("flashcard", mode, conv))
+				fmt.Printf("\n  %s\n\n", dimGray("? for tips    :q to quit"))
+				continue
+			}
+			if q.Check(ans) {
+				streak++
+				nCorrect++
+				stats.Record(q.Value, q.ToBase, true)
+				if streak > bestStreak {
+					bestStreak = streak
+				}
+				if streak > 1 {
+					fmt.Printf("  %s  %s\n\n", correctStyle("✓"), drillStreakStyle(streak))
+				} else {
+					fmt.Printf("  %s\n\n", correctStyle("✓"))
+				}
 			} else {
-				fmt.Printf("  %s\n\n", correctStyle("✓"))
+				prevStreak := streak
+				streak = 0
+				nWrong++
+				stats.Record(q.Value, q.ToBase, false)
+				if prevStreak > 1 {
+					fmt.Printf("  %s  %s  %s\n\n",
+						styleError("✗"),
+						drillColorValue(q.CorrectAnswer()),
+						dimGray(fmt.Sprintf("(lost %d)", prevStreak)),
+					)
+				} else {
+					fmt.Printf("  %s  %s\n\n",
+						styleError("✗"),
+						drillColorValue(q.CorrectAnswer()),
+					)
+				}
 			}
-		} else {
-			prevStreak := streak
-			streak = 0
-			nWrong++
-			stats.Record(q.Value, q.ToBase, false)
-			if prevStreak > 1 {
-				fmt.Printf("  %s  %s  %s\n\n",
-					styleError("✗"),
-					drillColorValue(q.CorrectAnswer()),
-					dimGray(fmt.Sprintf("(lost %d)", prevStreak)),
-				)
-			} else {
-				fmt.Printf("  %s  %s\n\n",
-					styleError("✗"),
-					drillColorValue(q.CorrectAnswer()),
-				)
-			}
+			break
 		}
 	}
 	showDrillSummary(stats, nCorrect, nWrong, bestStreak, "flashcard")
@@ -477,19 +722,27 @@ func runApproxDrill(_ *liner.State, tol drill.VibesTolerance, timeLimit time.Dur
 	gen := drill.NewApproxGenerator(rng, tol)
 	correctStyle := color.New(color.FgGreen, color.Bold).SprintFunc()
 	var streak, bestStreak, nCorrect, nWrong int
-	fmt.Println()
-	var tolDesc string
+
+	var tolDetail string
 	switch tol {
 	case drill.VibesExact:
-		tolDesc = fmt.Sprintf("exact match  limit %gs", timeLimit.Seconds())
+		tolDetail = fmt.Sprintf("exact  %gs limit", timeLimit.Seconds())
 	default:
-		tolDesc = fmt.Sprintf("within %d%%  limit %gs", int(tol), timeLimit.Seconds())
+		tolDetail = fmt.Sprintf("+-%d%%  %gs limit", int(tol), timeLimit.Seconds())
 	}
-	fmt.Printf("  %s\n\n", dimGray(tolDesc))
+
+	drillClear()
+	drillShowHeader("vibes", tolDetail, 0, 0, 0)
+	fmt.Print(drillTip("vibes", drill.ModeNibble, drill.ConvToDec))
+	fmt.Printf("\n  %s\n\n", dimGray(":q to quit"))
+
+	qNum := 0
 	for {
 		q := gen.Next()
+		qNum++
+
 		t0 := time.Now()
-		ans, tOut := vibesPrompt(q.From, timeLimit)
+		ans, tOut := vibesPrompt(q.From, timeLimit, qNum)
 		elapsed := time.Since(t0)
 		ans = strings.TrimSpace(ans)
 		if drillQuit(ans) {
@@ -562,53 +815,76 @@ func runApproxDrill(_ *liner.State, tol drill.VibesTolerance, timeLimit time.Dur
 }
 
 func runHexOpsDrill(line *liner.State, stats *drill.Stats) {
+	const clearEvery = 5
 	rng := rand.New(rand.NewSource(time.Now().UnixNano()))
 	gen := drill.NewHexOpsGenerator(rng)
 	correctStyle := color.New(color.FgGreen, color.Bold).SprintFunc()
 	var streak, bestStreak, nCorrect, nWrong int
-	fmt.Println()
-	fmt.Printf("  %s\n\n", dimGray("answer in hex (e.g. 0x1F or 1F)"))
+	qNum := 0
+
+outer:
 	for {
 		q := gen.Next()
-		fmt.Printf("  %s  =  ?\n", color.New(color.FgCyan).Sprint(q.Prompt))
-		t0 := time.Now()
-		ans, err := line.Prompt("  > ")
-		elapsed := time.Since(t0)
-		ans = strings.TrimSpace(ans)
-		if err != nil || drillQuit(ans) {
-			fmt.Println()
-			break
+		qNum++
+
+		if qNum == 1 {
+			drillClear()
+			drillShowHeader("hex ops", "answer in hex", 0, 0, 0)
+			fmt.Print(drillTip("hexops", drill.ModeNibble, drill.ConvToHex))
+			fmt.Printf("\n  %s\n\n", dimGray("? for tips    :q to quit"))
+		} else if qNum%clearEvery == 1 {
+			drillClear()
+			drillShowHeader("hex ops", "answer in hex", nCorrect, nWrong, streak)
 		}
-		tookStr := dimGray(fmt.Sprintf("%.1fs", elapsed.Seconds()))
-		if q.Check(ans) {
-			streak++
-			nCorrect++
-			if streak > bestStreak {
-				bestStreak = streak
+
+		for {
+			fmt.Printf("  %s  %s  =  ?\n", dimGray(fmt.Sprintf("#%d", qNum)), color.New(color.FgCyan).Sprint(q.Prompt))
+			t0 := time.Now()
+			ans, err := line.Prompt("  > ")
+			elapsed := time.Since(t0)
+			ans = strings.TrimSpace(ans)
+			if err != nil || drillQuit(ans) {
+				fmt.Println()
+				break outer
 			}
-			if streak > 1 {
-				fmt.Printf("  %s  %s  %s  %s\n\n", correctStyle("✓"), dimGray(q.CorrectAnswer()), tookStr, drillStreakStyle(streak))
+			if ans == "?" {
+				fmt.Println()
+				fmt.Print(drillTip("hexops", drill.ModeNibble, drill.ConvToHex))
+				fmt.Printf("\n  %s\n\n", dimGray("? for tips    :q to quit"))
+				continue
+			}
+			tookStr := dimGray(fmt.Sprintf("%.1fs", elapsed.Seconds()))
+			if q.Check(ans) {
+				streak++
+				nCorrect++
+				if streak > bestStreak {
+					bestStreak = streak
+				}
+				if streak > 1 {
+					fmt.Printf("  %s  %s  %s  %s\n\n", correctStyle("✓"), dimGray(q.CorrectAnswer()), tookStr, drillStreakStyle(streak))
+				} else {
+					fmt.Printf("  %s  %s  %s\n\n", correctStyle("✓"), dimGray(q.CorrectAnswer()), tookStr)
+				}
 			} else {
-				fmt.Printf("  %s  %s  %s\n\n", correctStyle("✓"), dimGray(q.CorrectAnswer()), tookStr)
+				prevStreak := streak
+				streak = 0
+				nWrong++
+				if prevStreak > 1 {
+					fmt.Printf("  %s  %s  %s  %s\n\n",
+						styleError("✗"),
+						boldWhite(q.CorrectAnswer()),
+						tookStr,
+						dimGray(fmt.Sprintf("(lost %d)", prevStreak)),
+					)
+				} else {
+					fmt.Printf("  %s  %s  %s\n\n",
+						styleError("✗"),
+						boldWhite(q.CorrectAnswer()),
+						tookStr,
+					)
+				}
 			}
-		} else {
-			prevStreak := streak
-			streak = 0
-			nWrong++
-			if prevStreak > 1 {
-				fmt.Printf("  %s  %s  %s  %s\n\n",
-					styleError("✗"),
-					boldWhite(q.CorrectAnswer()),
-					tookStr,
-					dimGray(fmt.Sprintf("(lost %d)", prevStreak)),
-				)
-			} else {
-				fmt.Printf("  %s  %s  %s\n\n",
-					styleError("✗"),
-					boldWhite(q.CorrectAnswer()),
-					tookStr,
-				)
-			}
+			break
 		}
 	}
 	showDrillSummary(stats, nCorrect, nWrong, bestStreak, "hex ops")
@@ -621,9 +897,13 @@ func runSprintDrill(line *liner.State, mode drill.Mode, conv drill.Conv, stats *
 	gen.ApplyWeakSpotBias(stats.MissedCounts)
 	correctStyle := color.New(color.FgGreen, color.Bold).SprintFunc()
 	var nCorrect, nWrong int
+
+	drillClear()
+	drillShowHeader("sprint", drillModeDesc(mode, conv), 0, 0, 0)
+	fmt.Print(drillTip("sprint", mode, conv))
+	fmt.Printf("\n  %s\n\n", dimGray("60 seconds - go!"))
+
 	start := time.Now()
-	fmt.Println()
-	fmt.Printf("  %s\n\n", dimGray("60 seconds - go!"))
 	for {
 		elapsed := time.Since(start)
 		if elapsed >= duration {
@@ -663,50 +943,73 @@ func runSprintDrill(line *liner.State, mode drill.Mode, conv drill.Conv, stats *
 }
 
 func runBitScanDrill(line *liner.State, stats *drill.Stats) {
+	const clearEvery = 5
 	rng := rand.New(rand.NewSource(time.Now().UnixNano()))
 	gen := drill.NewGenerator(drill.ModePowers, drill.ConvToBitPos, rng)
 	correctStyle := color.New(color.FgGreen, color.Bold).SprintFunc()
 	var streak, bestStreak, nCorrect, nWrong int
-	fmt.Println()
-	fmt.Printf("  %s\n\n", dimGray("which bit position is set? (0 = LSB)"))
+	qNum := 0
+
+outer:
 	for {
 		q := gen.Next()
-		fmt.Printf("  %s  →  bit position\n", drillColorValue(q.From))
-		ans, err := line.Prompt("  > ")
-		ans = strings.TrimSpace(ans)
-		if err != nil || drillQuit(ans) {
-			fmt.Println()
-			break
+		qNum++
+
+		if qNum == 1 {
+			drillClear()
+			drillShowHeader("bit scan", "which bit is set? (0=LSB)", 0, 0, 0)
+			fmt.Print(drillTip("bitscan", drill.ModeNibble, drill.ConvToHex))
+			fmt.Printf("\n  %s\n\n", dimGray("? for tips    :q to quit"))
+		} else if qNum%clearEvery == 1 {
+			drillClear()
+			drillShowHeader("bit scan", "which bit is set? (0=LSB)", nCorrect, nWrong, streak)
 		}
-		if q.Check(ans) {
-			streak++
-			nCorrect++
-			stats.Record(q.Value, "bit", true)
-			if streak > bestStreak {
-				bestStreak = streak
+
+		for {
+			fmt.Printf("  %s  %s  →  bit position\n", dimGray(fmt.Sprintf("#%d", qNum)), drillColorValue(q.From))
+			ans, err := line.Prompt("  > ")
+			ans = strings.TrimSpace(ans)
+			if err != nil || drillQuit(ans) {
+				fmt.Println()
+				break outer
 			}
-			if streak > 1 {
-				fmt.Printf("  %s  %s\n\n", correctStyle("✓"), drillStreakStyle(streak))
+			if ans == "?" {
+				fmt.Println()
+				fmt.Print(drillTip("bitscan", drill.ModeNibble, drill.ConvToHex))
+				fmt.Printf("\n  %s\n\n", dimGray("? for tips    :q to quit"))
+				continue
+			}
+			if q.Check(ans) {
+				streak++
+				nCorrect++
+				stats.Record(q.Value, "bit", true)
+				if streak > bestStreak {
+					bestStreak = streak
+				}
+				if streak > 1 {
+					fmt.Printf("  %s  %s\n\n", correctStyle("✓"), drillStreakStyle(streak))
+				} else {
+					fmt.Printf("  %s\n\n", correctStyle("✓"))
+				}
 			} else {
-				fmt.Printf("  %s\n\n", correctStyle("✓"))
+				prevStreak := streak
+				streak = 0
+				nWrong++
+				stats.Record(q.Value, "bit", false)
+				if prevStreak > 1 {
+					fmt.Printf("  %s  %s  %s\n\n",
+						styleError("✗"),
+						boldWhite(q.CorrectAnswer()),
+						dimGray(fmt.Sprintf("(lost %d)", prevStreak)),
+					)
+				} else {
+					fmt.Printf("  %s  %s\n\n",
+						styleError("✗"),
+						boldWhite(q.CorrectAnswer()),
+					)
+				}
 			}
-		} else {
-			prevStreak := streak
-			streak = 0
-			nWrong++
-			stats.Record(q.Value, "bit", false)
-			if prevStreak > 1 {
-				fmt.Printf("  %s  %s  %s\n\n",
-					styleError("✗"),
-					boldWhite(q.CorrectAnswer()),
-					dimGray(fmt.Sprintf("(lost %d)", prevStreak)),
-				)
-			} else {
-				fmt.Printf("  %s  %s\n\n",
-					styleError("✗"),
-					boldWhite(q.CorrectAnswer()),
-				)
-			}
+			break
 		}
 	}
 	showDrillSummary(stats, nCorrect, nWrong, bestStreak, "bit scan")

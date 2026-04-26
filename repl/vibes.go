@@ -25,7 +25,7 @@ import (
 	"github.com/fatih/color"
 )
 
-func vibesPrompt(from string, timeLimit time.Duration) (answer string, timedOut bool) {
+func vibesPrompt(from string, timeLimit time.Duration, qNum int) (answer string, timedOut bool) {
 	urgentStyle := color.New(color.FgRed, color.Bold).SprintFunc()
 
 	fd := uintptr(os.Stdin.Fd())
@@ -69,15 +69,16 @@ func vibesPrompt(from string, timeLimit time.Duration) (answer string, timedOut 
 		}
 		lastSecs = secs
 		tl := timerLabel()
+		qLabel := dimGray(fmt.Sprintf("#%d", qNum))
 		if !initialized {
-			fmt.Printf("  %s  ->  ~dec  %s\n  > %s",
-				drillColorValue(from), tl, string(buf))
+			fmt.Printf("  %s  %s  ->  ~dec  %s\n  > %s",
+				qLabel, drillColorValue(from), tl, string(buf))
 			initialized = true
 		} else {
 			// Cursor is on the input line. Go up 1, rewrite question, come
-			// back, rewrite input. We own both lines — no liner state to corrupt.
-			fmt.Printf("\033[1A\r  %s  ->  ~dec  %s\033[K\n\r  > %s\033[K",
-				drillColorValue(from), tl, string(buf))
+			// back, rewrite input. We own both lines - no liner state to corrupt.
+			fmt.Printf("\033[1A\r  %s  %s  ->  ~dec  %s\033[K\n\r  > %s\033[K",
+				qLabel, drillColorValue(from), tl, string(buf))
 		}
 	}
 
