@@ -202,14 +202,15 @@ func printHelp(topic string) {
 		fmt.Println("  Games:")
 		fmt.Println("    1) convert    Q&A: type the conversion")
 		fmt.Println("    2) flashcard  see answer for 1.5s, then recall from memory")
-		fmt.Println("    3) vibes      pick the closest value - a, b, or c")
+		fmt.Println("    3) vibes      estimate hex/bin values against the clock")
 		fmt.Println("    4) sprint     60-second timed blitz")
 		fmt.Println("    5) bit scan   given a hex value, which bit position is set?")
+		fmt.Println("    6) other      bonus games (hex ops: 0xA + 0x7 = ?)")
 		fmt.Println()
-		fmt.Println("  Modes:")
-		fmt.Println("    1) nibble  (0–15)      master the 16 core hex facts first")
-		fmt.Println("    2) powers  (2^0–2^15)  essential for fast decomposition")
-		fmt.Println("    3) byte    (0–255)     full 8-bit range")
+		fmt.Println("  Modes (convert / flashcard / sprint):")
+		fmt.Println("    1) nibble  (0-15)      master the 16 core hex facts first")
+		fmt.Println("    2) powers  (2^0-2^15)  essential for fast decomposition")
+		fmt.Println("    3) byte    (0-255)     full 8-bit range")
 		fmt.Println("    4) random  mix of all three")
 		fmt.Println()
 		fmt.Println("  Answer formats:")
@@ -219,7 +220,7 @@ func printHelp(topic string) {
 		fmt.Println("    bit:  plain number - 0 = LSB (e.g. 7)")
 		fmt.Println()
 		fmt.Println("  Stats saved to ~/.wrkr_drill.json")
-		fmt.Println("  Recommended: nibble → hex until instant, powers → bin, byte → hex")
+		fmt.Println("  Recommended: nibble -> hex until instant, powers -> bin, byte -> hex")
 	case "all":
 		printHelp("math")
 		printHelp("systems")
@@ -471,9 +472,41 @@ func runFlashcardDrill(line *liner.State, mode drill.Mode, conv drill.Conv, stat
 	showDrillSummary(stats, nCorrect, nWrong, bestStreak, "flashcard")
 }
 
-const vibesTimeLimit = 5 * time.Second
+// startVibesTimer starts a goroutine that reprints the question line with a
+// ticking countdown above the liner prompt. Close the returned channel to stop.
+// The goroutine prints one final update at 0s then exits.
+func startVibesTimer(from string, timeLimit time.Duration, t0 time.Time) chan struct{} {
+	stop := make(chan struct{})
+	go func() {
+		urgentStyle := color.New(color.FgRed, color.Bold).SprintFunc()
+		ticker := time.NewTicker(250 * time.Millisecond)
+		defer ticker.Stop()
+		for {
+			select {
+			case <-stop:
+				return
+			case <-ticker.C:
+				remaining := timeLimit - time.Since(t0)
+				secs := int(remaining.Seconds())
+				if secs < 0 {
+					secs = 0
+				}
+				var timerStr string
+				if secs <= 2 {
+					timerStr = urgentStyle(fmt.Sprintf("[%ds]", secs))
+				} else {
+					timerStr = dimGray(fmt.Sprintf("[%ds]", secs))
+				}
+				// Move cursor up 1, rewrite question line with updated timer, move back down.
+				fmt.Printf("\033[1A\r  %s  ->  ~dec  %s\033[K\n",
+					drillColorValue(from), timerStr)
+			}
+		}
+	}()
+	return stop
+}
 
-func runApproxDrill(line *liner.State, tol drill.VibesTolerance, stats *drill.Stats) {
+func runApproxDrill(line *liner.State, tol drill.VibesTolerance, timeLimit time.Duration, stats *drill.Stats) {
 	rng := rand.New(rand.NewSource(time.Now().UnixNano()))
 	gen := drill.NewApproxGenerator(rng, tol)
 	correctStyle := color.New(color.FgGreen, color.Bold).SprintFunc()
@@ -482,16 +515,20 @@ func runApproxDrill(line *liner.State, tol drill.VibesTolerance, stats *drill.St
 	var tolDesc string
 	switch tol {
 	case drill.VibesExact:
-		tolDesc = "exact match, under 5s"
+		tolDesc = fmt.Sprintf("exact match, under %gs", timeLimit.Seconds())
 	default:
-		tolDesc = fmt.Sprintf("within %d%%, under 5s", int(tol))
+		tolDesc = fmt.Sprintf("within %d%%, under %gs", int(tol), timeLimit.Seconds())
 	}
 	fmt.Printf("  %s\n\n", dimGray(tolDesc))
 	for {
 		q := gen.Next()
-		fmt.Printf("  %s  →  ~dec\n", drillColorValue(q.From))
+		// Print question with initial timer - goroutine will update this line.
+		secs := int(timeLimit.Seconds())
+		fmt.Printf("  %s  ->  ~dec  %s\n", drillColorValue(q.From), dimGray(fmt.Sprintf("[%ds]", secs)))
 		t0 := time.Now()
+		stopTimer := startVibesTimer(q.From, timeLimit, t0)
 		ans, err := line.Prompt("  > ")
+		close(stopTimer)
 		elapsed := time.Since(t0)
 		ans = strings.TrimSpace(ans)
 		if err != nil || drillQuit(ans) {
@@ -501,25 +538,24 @@ func runApproxDrill(line *liner.State, tol drill.VibesTolerance, stats *drill.St
 
 		tookStr := dimGray(fmt.Sprintf("%.1fs", elapsed.Seconds()))
 
-		if elapsed > vibesTimeLimit {
-			// Too slow - auto-fail regardless of answer correctness.
+		if elapsed > timeLimit {
+			// Too slow - auto-fail regardless of answer.
 			prevStreak := streak
 			streak = 0
 			nWrong++
 			stats.Record(q.Value, "dec", false)
-			msg := fmt.Sprintf("too slow (%s) - vibes, not math", tookStr)
 			if prevStreak > 1 {
 				fmt.Printf("  %s  %s  %s  %s\n\n",
 					styleError("✗"),
 					boldWhite(fmt.Sprintf("%d", q.Value)),
-					dimGray(msg),
+					dimGray(fmt.Sprintf("too slow (%s)", tookStr)),
 					dimGray(fmt.Sprintf("(lost %d)", prevStreak)),
 				)
 			} else {
 				fmt.Printf("  %s  %s  %s\n\n",
 					styleError("✗"),
 					boldWhite(fmt.Sprintf("%d", q.Value)),
-					dimGray(msg),
+					dimGray(fmt.Sprintf("too slow (%s)", tookStr)),
 				)
 			}
 			continue
@@ -562,6 +598,59 @@ func runApproxDrill(line *liner.State, tol drill.VibesTolerance, stats *drill.St
 		}
 	}
 	showDrillSummary(stats, nCorrect, nWrong, bestStreak, "vibes")
+}
+
+func runHexOpsDrill(line *liner.State, stats *drill.Stats) {
+	rng := rand.New(rand.NewSource(time.Now().UnixNano()))
+	gen := drill.NewHexOpsGenerator(rng)
+	correctStyle := color.New(color.FgGreen, color.Bold).SprintFunc()
+	var streak, bestStreak, nCorrect, nWrong int
+	fmt.Println()
+	fmt.Printf("  %s\n\n", dimGray("answer in hex (e.g. 0x1F or 1F)"))
+	for {
+		q := gen.Next()
+		fmt.Printf("  %s  =  ?\n", color.New(color.FgCyan).Sprint(q.Prompt))
+		t0 := time.Now()
+		ans, err := line.Prompt("  > ")
+		elapsed := time.Since(t0)
+		ans = strings.TrimSpace(ans)
+		if err != nil || drillQuit(ans) {
+			fmt.Println()
+			break
+		}
+		tookStr := dimGray(fmt.Sprintf("%.1fs", elapsed.Seconds()))
+		if q.Check(ans) {
+			streak++
+			nCorrect++
+			if streak > bestStreak {
+				bestStreak = streak
+			}
+			if streak > 1 {
+				fmt.Printf("  %s  %s  %s  %s\n\n", correctStyle("✓"), dimGray(q.CorrectAnswer()), tookStr, drillStreakStyle(streak))
+			} else {
+				fmt.Printf("  %s  %s  %s\n\n", correctStyle("✓"), dimGray(q.CorrectAnswer()), tookStr)
+			}
+		} else {
+			prevStreak := streak
+			streak = 0
+			nWrong++
+			if prevStreak > 1 {
+				fmt.Printf("  %s  %s  %s  %s\n\n",
+					styleError("✗"),
+					boldWhite(q.CorrectAnswer()),
+					tookStr,
+					dimGray(fmt.Sprintf("(lost %d)", prevStreak)),
+				)
+			} else {
+				fmt.Printf("  %s  %s  %s\n\n",
+					styleError("✗"),
+					boldWhite(q.CorrectAnswer()),
+					tookStr,
+				)
+			}
+		}
+	}
+	showDrillSummary(stats, nCorrect, nWrong, bestStreak, "hex ops")
 }
 
 func runSprintDrill(line *liner.State, mode drill.Mode, conv drill.Conv, stats *drill.Stats) {
@@ -705,14 +794,15 @@ func runDrill(line *liner.State) {
 	fmt.Println("  Game:")
 	fmt.Println("    1) convert    binary ↔ hex ↔ decimal Q&A")
 	fmt.Println("    2) flashcard  see answer briefly, then recall")
-	fmt.Println("    3) vibes      multiple choice - which is closest?")
+	fmt.Println("    3) vibes      estimate hex/bin values against the clock")
 	fmt.Println("    4) sprint     60-second timed blitz")
 	fmt.Println("    5) bit scan   which bit position is set?")
+	fmt.Println("    6) other      bonus games")
 	fmt.Println()
 	fmt.Printf("  %s to quit\n", dimGray(":q"))
 	fmt.Println()
 
-	gameRaw, err := line.Prompt("  game [1-5]: ")
+	gameRaw, err := line.Prompt("  game [1-6]: ")
 	if err != nil || drillQuit(gameRaw) {
 		fmt.Println()
 		return
@@ -725,14 +815,35 @@ func runDrill(line *liner.State) {
 		return
 	}
 
-	// Vibes: pick precision, then go.
+	// Other: bonus games submenu.
+	if game == "6" {
+		fmt.Println()
+		fmt.Println("  Other:")
+		fmt.Println("    1) hex ops  arithmetic & bitwise in hex  (0xA + 0x7 = ?)")
+		fmt.Println()
+		otherRaw, err := line.Prompt("  game [1]: ")
+		if err != nil || drillQuit(otherRaw) {
+			fmt.Println()
+			return
+		}
+		switch strings.TrimSpace(otherRaw) {
+		case "1":
+			runHexOpsDrill(line, &stats)
+		default:
+			fmt.Println(styleError("  invalid - enter 1"))
+			fmt.Println()
+		}
+		return
+	}
+
+	// Vibes: pick precision and time limit, then go.
 	if game == "3" {
 		fmt.Println()
 		fmt.Println("  Precision:")
-		fmt.Println("    1) rough  ±25%  magnitude + gut feel")
-		fmt.Println("    2) close  ±10%  read the leading digit(s)")
-		fmt.Println("    3) tight  ±5%   almost exact")
-		fmt.Println("    4) exact  0     nail it")
+		fmt.Println("    1) rough  +-25%  magnitude + gut feel")
+		fmt.Println("    2) close  +-10%  read the leading digit(s)")
+		fmt.Println("    3) tight  +-5%   almost exact")
+		fmt.Println("    4) exact  0      nail it")
 		fmt.Println()
 		tolRaw, err := line.Prompt("  precision [1-4]: ")
 		if err != nil || drillQuit(tolRaw) {
@@ -754,7 +865,25 @@ func runDrill(line *liner.State) {
 			fmt.Println()
 			return
 		}
-		runApproxDrill(line, tol, &stats)
+		fmt.Println()
+		fmt.Printf("  %s\n", dimGray("time limit per question (default 5):"))
+		fmt.Println()
+		timeLimitRaw, err := line.Prompt("  seconds [5]: ")
+		if err != nil || drillQuit(timeLimitRaw) {
+			fmt.Println()
+			return
+		}
+		timeLimit := 5 * time.Second
+		if ts := strings.TrimSpace(timeLimitRaw); ts != "" {
+			if n, e := fmt.Sscanf(ts, "%g", new(float64)); n == 1 && e == nil {
+				var secs float64
+				fmt.Sscanf(ts, "%g", &secs)
+				if secs >= 1 && secs <= 60 {
+					timeLimit = time.Duration(secs * float64(time.Second))
+				}
+			}
+		}
+		runApproxDrill(line, tol, timeLimit, &stats)
 		return
 	}
 
@@ -1601,14 +1730,19 @@ func Run() {
 
 		// If the result is a string but the expression contains format functions
 		// combined with arithmetic, it means we got string concatenation instead of
-		// numeric addition (e.g. "bin(a) + bin(b)" → "0b10100b101"). Retry with
+		// numeric addition (e.g. "bin(a) + bin(b)" -> "0b10100b101"). Retry with
 		// format wrappers stripped.
-		if _, isStr := result.(string); isStr && engine.ContainsFormatFn(processedInput) {
-			if stripped := engine.StripFormatWrappers(processedInput); stripped != processedInput {
-				if p2, err2 := expr.Compile(stripped, expr.Env(env)); err2 == nil {
-					if res2, err2 := expr.Run(p2, env); err2 == nil {
-						result = res2
-						processedInput = stripped
+		// BUT: only strip if the string is NOT a valid formatted value. A result like
+		// "0b10000000" from bin(0x80) is correct and must be printed as-is; only
+		// garbage like "0b10100b101" (concatenated strings) should trigger the retry.
+		if sv, isStr := result.(string); isStr && engine.ContainsFormatFn(processedInput) {
+			if _, validResult := engine.ParseResultString(sv); !validResult {
+				if stripped := engine.StripFormatWrappers(processedInput); stripped != processedInput {
+					if p2, err2 := expr.Compile(stripped, expr.Env(env)); err2 == nil {
+						if res2, err2 := expr.Run(p2, env); err2 == nil {
+							result = res2
+							processedInput = stripped
+						}
 					}
 				}
 			}
