@@ -324,6 +324,18 @@ func drillClear() {
 	fmt.Print("\033[2J\033[H")
 }
 
+// drillWaitToStart shows an "Enter to start" prompt and returns false if the
+// user quits instead. Call after printing tips so the user can read at leisure.
+func drillWaitToStart(line *liner.State) bool {
+	fmt.Printf("  %s\n", dimGray("Enter to start    :q to quit"))
+	raw, err := line.Prompt("")
+	if err != nil || drillQuit(strings.TrimSpace(raw)) {
+		fmt.Println()
+		return false
+	}
+	return true
+}
+
 func drillModeDesc(mode drill.Mode, conv drill.Conv) string {
 	var modeName string
 	switch mode {
@@ -570,21 +582,28 @@ func runConvertDrill(line *liner.State, mode drill.Mode, conv drill.Conv, stats 
 	correctStyle := color.New(color.FgGreen, color.Bold).SprintFunc()
 	var streak, bestStreak, nCorrect, nWrong int
 	detail := drillModeDesc(mode, conv)
-	qNum := 0
 
+	drillClear()
+	drillShowHeader("convert", detail, 0, 0, 0)
+	fmt.Print(drillTip("convert", mode, conv))
+	fmt.Println()
+	if !drillWaitToStart(line) {
+		return
+	}
+	drillClear()
+	drillShowHeader("convert", detail, 0, 0, 0)
+	fmt.Printf("  %s\n\n", dimGray("? for tips    :q to quit"))
+
+	qNum := 0
 outer:
 	for {
 		q := gen.Next()
 		qNum++
 
-		if qNum == 1 {
-			drillClear()
-			drillShowHeader("convert", detail, 0, 0, 0)
-			fmt.Print(drillTip("convert", mode, conv))
-			fmt.Printf("\n  %s\n\n", dimGray("? for tips    :q to quit"))
-		} else if qNum%clearEvery == 1 {
+		if qNum > 1 && qNum%clearEvery == 1 {
 			drillClear()
 			drillShowHeader("convert", detail, nCorrect, nWrong, streak)
+			fmt.Printf("  %s\n\n", dimGray("? for tips    :q to quit"))
 		}
 
 		for {
@@ -645,21 +664,28 @@ func runFlashcardDrill(line *liner.State, mode drill.Mode, conv drill.Conv, stat
 	correctStyle := color.New(color.FgGreen, color.Bold).SprintFunc()
 	var streak, bestStreak, nCorrect, nWrong int
 	detail := drillModeDesc(mode, conv)
-	qNum := 0
 
+	drillClear()
+	drillShowHeader("flashcard", detail, 0, 0, 0)
+	fmt.Print(drillTip("flashcard", mode, conv))
+	fmt.Println()
+	if !drillWaitToStart(line) {
+		return
+	}
+	drillClear()
+	drillShowHeader("flashcard", detail, 0, 0, 0)
+	fmt.Printf("  %s\n\n", dimGray("? for tips    :q to quit"))
+
+	qNum := 0
 outer:
 	for {
 		q := gen.Next()
 		qNum++
 
-		if qNum == 1 {
-			drillClear()
-			drillShowHeader("flashcard", detail, 0, 0, 0)
-			fmt.Print(drillTip("flashcard", mode, conv))
-			fmt.Printf("\n  %s\n\n", dimGray("? for tips    :q to quit"))
-		} else if qNum%clearEvery == 1 {
+		if qNum > 1 && qNum%clearEvery == 1 {
 			drillClear()
 			drillShowHeader("flashcard", detail, nCorrect, nWrong, streak)
+			fmt.Printf("  %s\n\n", dimGray("? for tips    :q to quit"))
 		}
 
 		for {
@@ -717,7 +743,7 @@ outer:
 	showDrillSummary(stats, nCorrect, nWrong, bestStreak, "flashcard")
 }
 
-func runApproxDrill(_ *liner.State, tol drill.VibesTolerance, timeLimit time.Duration, stats *drill.Stats) {
+func runApproxDrill(line *liner.State, tol drill.VibesTolerance, timeLimit time.Duration, stats *drill.Stats) {
 	rng := rand.New(rand.NewSource(time.Now().UnixNano()))
 	gen := drill.NewApproxGenerator(rng, tol)
 	correctStyle := color.New(color.FgGreen, color.Bold).SprintFunc()
@@ -734,7 +760,13 @@ func runApproxDrill(_ *liner.State, tol drill.VibesTolerance, timeLimit time.Dur
 	drillClear()
 	drillShowHeader("vibes", tolDetail, 0, 0, 0)
 	fmt.Print(drillTip("vibes", drill.ModeNibble, drill.ConvToDec))
-	fmt.Printf("\n  %s\n\n", dimGray(":q to quit"))
+	fmt.Println()
+	if !drillWaitToStart(line) {
+		return
+	}
+	drillClear()
+	drillShowHeader("vibes", tolDetail, 0, 0, 0)
+	fmt.Printf("  %s\n\n", dimGray(":q to quit"))
 
 	qNum := 0
 	for {
@@ -820,21 +852,28 @@ func runHexOpsDrill(line *liner.State, stats *drill.Stats) {
 	gen := drill.NewHexOpsGenerator(rng)
 	correctStyle := color.New(color.FgGreen, color.Bold).SprintFunc()
 	var streak, bestStreak, nCorrect, nWrong int
-	qNum := 0
 
+	drillClear()
+	drillShowHeader("hex ops", "answer in hex", 0, 0, 0)
+	fmt.Print(drillTip("hexops", drill.ModeNibble, drill.ConvToHex))
+	fmt.Println()
+	if !drillWaitToStart(line) {
+		return
+	}
+	drillClear()
+	drillShowHeader("hex ops", "answer in hex", 0, 0, 0)
+	fmt.Printf("  %s\n\n", dimGray("? for tips    :q to quit"))
+
+	qNum := 0
 outer:
 	for {
 		q := gen.Next()
 		qNum++
 
-		if qNum == 1 {
-			drillClear()
-			drillShowHeader("hex ops", "answer in hex", 0, 0, 0)
-			fmt.Print(drillTip("hexops", drill.ModeNibble, drill.ConvToHex))
-			fmt.Printf("\n  %s\n\n", dimGray("? for tips    :q to quit"))
-		} else if qNum%clearEvery == 1 {
+		if qNum > 1 && qNum%clearEvery == 1 {
 			drillClear()
 			drillShowHeader("hex ops", "answer in hex", nCorrect, nWrong, streak)
+			fmt.Printf("  %s\n\n", dimGray("? for tips    :q to quit"))
 		}
 
 		for {
@@ -901,7 +940,13 @@ func runSprintDrill(line *liner.State, mode drill.Mode, conv drill.Conv, stats *
 	drillClear()
 	drillShowHeader("sprint", drillModeDesc(mode, conv), 0, 0, 0)
 	fmt.Print(drillTip("sprint", mode, conv))
-	fmt.Printf("\n  %s\n\n", dimGray("60 seconds - go!"))
+	fmt.Println()
+	if !drillWaitToStart(line) {
+		return
+	}
+	drillClear()
+	drillShowHeader("sprint", drillModeDesc(mode, conv), 0, 0, 0)
+	fmt.Printf("  %s\n\n", dimGray("60 seconds - go!"))
 
 	start := time.Now()
 	for {
@@ -948,21 +993,28 @@ func runBitScanDrill(line *liner.State, stats *drill.Stats) {
 	gen := drill.NewGenerator(drill.ModePowers, drill.ConvToBitPos, rng)
 	correctStyle := color.New(color.FgGreen, color.Bold).SprintFunc()
 	var streak, bestStreak, nCorrect, nWrong int
-	qNum := 0
 
+	drillClear()
+	drillShowHeader("bit scan", "which bit is set? (0=LSB)", 0, 0, 0)
+	fmt.Print(drillTip("bitscan", drill.ModeNibble, drill.ConvToHex))
+	fmt.Println()
+	if !drillWaitToStart(line) {
+		return
+	}
+	drillClear()
+	drillShowHeader("bit scan", "which bit is set? (0=LSB)", 0, 0, 0)
+	fmt.Printf("  %s\n\n", dimGray("? for tips    :q to quit"))
+
+	qNum := 0
 outer:
 	for {
 		q := gen.Next()
 		qNum++
 
-		if qNum == 1 {
-			drillClear()
-			drillShowHeader("bit scan", "which bit is set? (0=LSB)", 0, 0, 0)
-			fmt.Print(drillTip("bitscan", drill.ModeNibble, drill.ConvToHex))
-			fmt.Printf("\n  %s\n\n", dimGray("? for tips    :q to quit"))
-		} else if qNum%clearEvery == 1 {
+		if qNum > 1 && qNum%clearEvery == 1 {
 			drillClear()
 			drillShowHeader("bit scan", "which bit is set? (0=LSB)", nCorrect, nWrong, streak)
+			fmt.Printf("  %s\n\n", dimGray("? for tips    :q to quit"))
 		}
 
 		for {
