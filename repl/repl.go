@@ -9,6 +9,7 @@ import (
 	"os/exec"
 	"sort"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/atotto/clipboard"
@@ -472,13 +473,21 @@ func runFlashcardDrill(line *liner.State, mode drill.Mode, conv drill.Conv, stat
 	showDrillSummary(stats, nCorrect, nWrong, bestStreak, "flashcard")
 }
 
-// startVibesTimer starts a goroutine that reprints the question line with a
-// ticking countdown above the liner prompt. Close the returned channel to stop.
-// The goroutine prints one final update at 0s then exits.
-func startVibesTimer(from string, timeLimit time.Duration, t0 time.Time) chan struct{} {
+// startVibesTimer starts a goroutine that ticks the countdown on the question
+// line while liner is waiting for input. Returns a stop func that blocks until
+// the goroutine has fully exited (no more writes to stdout after it returns).
+//
+// Cursor safety: uses ESC-save (CSI s) / ESC-restore (CSI u) so that the
+// timer rewrite never changes liner's cursor-position tracking. liner sees the
+// cursor at exactly the position it left it; the visual update is invisible to
+// liner's internal state.
+func startVibesTimer(from string, timeLimit time.Duration, t0 time.Time) func() {
+	urgentStyle := color.New(color.FgRed, color.Bold).SprintFunc()
 	stop := make(chan struct{})
+	var wg sync.WaitGroup
+	wg.Add(1)
 	go func() {
-		urgentStyle := color.New(color.FgRed, color.Bold).SprintFunc()
+		defer wg.Done()
 		ticker := time.NewTicker(250 * time.Millisecond)
 		defer ticker.Stop()
 		for {
@@ -486,8 +495,14 @@ func startVibesTimer(from string, timeLimit time.Duration, t0 time.Time) chan st
 			case <-stop:
 				return
 			case <-ticker.C:
+				// Double-check: don't write if stop was also signalled this tick.
+				select {
+				case <-stop:
+					return
+				default:
+				}
 				remaining := timeLimit - time.Since(t0)
-				secs := int(remaining.Seconds())
+				secs := int(remaining.Seconds()) + 1
 				if secs < 0 {
 					secs = 0
 				}
@@ -497,13 +512,21 @@ func startVibesTimer(from string, timeLimit time.Duration, t0 time.Time) chan st
 				} else {
 					timerStr = dimGray(fmt.Sprintf("[%ds]", secs))
 				}
-				// Move cursor up 1, rewrite question line with updated timer, move back down.
-				fmt.Printf("\033[1A\r  %s  ->  ~dec  %s\033[K\n",
+				// \033[s  save cursor (liner's position)
+				// \033[1A  up 1 line to question line
+				// \r       go to col 0
+				// ...      rewrite question + updated timer
+				// \033[K   clear rest of line
+				// \033[u  restore cursor (back to exactly where liner was)
+				fmt.Printf("\033[s\033[1A\r  %s  ->  ~dec  %s\033[K\033[u",
 					drillColorValue(from), timerStr)
 			}
 		}
 	}()
-	return stop
+	return func() {
+		close(stop)
+		wg.Wait() // block until goroutine has finished - no more stdout writes after this
+	}
 }
 
 func runApproxDrill(line *liner.State, tol drill.VibesTolerance, timeLimit time.Duration, stats *drill.Stats) {
@@ -528,7 +551,7 @@ func runApproxDrill(line *liner.State, tol drill.VibesTolerance, timeLimit time.
 		t0 := time.Now()
 		stopTimer := startVibesTimer(q.From, timeLimit, t0)
 		ans, err := line.Prompt("  > ")
-		close(stopTimer)
+		stopTimer()
 		elapsed := time.Since(t0)
 		ans = strings.TrimSpace(ans)
 		if err != nil || drillQuit(ans) {
@@ -536,7 +559,7 @@ func runApproxDrill(line *liner.State, tol drill.VibesTolerance, timeLimit time.
 			break
 		}
 
-		tookStr := dimGray(fmt.Sprintf("%.1fs", elapsed.Seconds()))
+		took := fmt.Sprintf("%.1fs", elapsed.Seconds())
 
 		if elapsed > timeLimit {
 			// Too slow - auto-fail regardless of answer.
@@ -548,14 +571,14 @@ func runApproxDrill(line *liner.State, tol drill.VibesTolerance, timeLimit time.
 				fmt.Printf("  %s  %s  %s  %s\n\n",
 					styleError("✗"),
 					boldWhite(fmt.Sprintf("%d", q.Value)),
-					dimGray(fmt.Sprintf("too slow (%s)", tookStr)),
+					dimGray(fmt.Sprintf("too slow (%s)", took)),
 					dimGray(fmt.Sprintf("(lost %d)", prevStreak)),
 				)
 			} else {
 				fmt.Printf("  %s  %s  %s\n\n",
 					styleError("✗"),
 					boldWhite(fmt.Sprintf("%d", q.Value)),
-					dimGray(fmt.Sprintf("too slow (%s)", tookStr)),
+					dimGray(fmt.Sprintf("too slow (%s)", took)),
 				)
 			}
 			continue
@@ -570,9 +593,9 @@ func runApproxDrill(line *liner.State, tol drill.VibesTolerance, timeLimit time.
 			}
 			exact := dimGray(fmt.Sprintf("= %d", q.Value))
 			if streak > 1 {
-				fmt.Printf("  %s  %s  %s  %s\n\n", correctStyle("✓"), exact, tookStr, drillStreakStyle(streak))
+				fmt.Printf("  %s  %s  %s  %s\n\n", correctStyle("✓"), exact, dimGray(took), drillStreakStyle(streak))
 			} else {
-				fmt.Printf("  %s  %s  %s\n\n", correctStyle("✓"), exact, tookStr)
+				fmt.Printf("  %s  %s  %s\n\n", correctStyle("✓"), exact, dimGray(took))
 			}
 		} else {
 			prevStreak := streak
@@ -584,7 +607,7 @@ func runApproxDrill(line *liner.State, tol drill.VibesTolerance, timeLimit time.
 					styleError("✗"),
 					boldWhite(fmt.Sprintf("%d", q.Value)),
 					dimGray(fmt.Sprintf("(ok: %s)", q.RangeHint())),
-					tookStr,
+					dimGray(took),
 					dimGray(fmt.Sprintf("(lost %d)", prevStreak)),
 				)
 			} else {
@@ -592,7 +615,7 @@ func runApproxDrill(line *liner.State, tol drill.VibesTolerance, timeLimit time.
 					styleError("✗"),
 					boldWhite(fmt.Sprintf("%d", q.Value)),
 					dimGray(fmt.Sprintf("(ok: %s)", q.RangeHint())),
-					tookStr,
+					dimGray(took),
 				)
 			}
 		}
