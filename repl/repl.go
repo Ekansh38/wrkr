@@ -1571,10 +1571,10 @@ func Run() {
 			s4 = strings.ReplaceAll(s4, " in to ", " to ")
 			s5 := engine.ProcessConversions(s4)
 			s6 := engine.ProcessFormatting(s5)
-			s7 := engine.FixImplicitMultiplication(s6)
-			s8 := engine.RewriteBitwiseOps(s7)
-			s9 := engine.TranslateBases(s8)
-			s10 := engine.ExpandConstants(s8) // unit names -> numbers (pre-translate view)
+			s7 := engine.TranslateBases(s6)
+			s8 := engine.FixImplicitMultiplication(s7)
+			s9 := engine.RewriteBitwiseOps(s8)
+			s10 := engine.ExpandConstants(s6) // unit names -> numbers (pre-translate view)
 
 			steps := []struct{ label, val string }{
 				{"input   ", s0},
@@ -1584,8 +1584,8 @@ func Run() {
 				{"keywords", s4},
 				{"convert ", s5},
 				{"format  ", s6},
-				{"multiply", s7},
-				{"bitwise ", s8},
+				{"bases   ", s7},
+				{"multiply", s8},
 				{"ast     ", s9},
 				{"expanded", s10},
 			}

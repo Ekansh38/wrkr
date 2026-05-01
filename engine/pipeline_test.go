@@ -546,3 +546,13 @@ func TestEval_U8OfHex(t *testing.T) {
 func TestEval_Bin32InArithmetic(t *testing.T) {
 	near(t, eval(t, "bin32(255) * 2"), 510, "bin32(255) * 2")
 }
+
+func TestEval_HexLiteralDivUnit(t *testing.T) {
+	// "64 mb / 0x1000 bytes" must not produce "0x(1000 * bytes)" parse error.
+	// Expected: 64*1048576 / (0x1000*1) = 67108864 / 4096 = 16384
+	near(t, eval(t, "64 mb / 0x1000 bytes"), 16384, "64 mb / 0x1000 bytes")
+}
+
+func TestEval_HexLiteralTimesUnit(t *testing.T) {
+	near(t, eval(t, "0x10 mb"), 16*1048576, "0x10 mb")
+}

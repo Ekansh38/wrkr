@@ -307,9 +307,12 @@ func BuildASTString(input string) string {
 	s := StripNumericSeparators(input)
 	s = ProcessConversions(s)
 	s = ProcessFormatting(s)
+	s = TranslateBases(s) // must come before FixImplicitMultiplication so that
+	// "0x1000 bytes" becomes "4096 bytes" before implicit-mult sees it;
+	// otherwise the regex shields "0x" but then separately rewrites "1000 bytes"
+	// → "0x(1000 * bytes)" which is unparseable.
 	s = FixImplicitMultiplication(s)
 	s = RewriteBitwiseOps(s)
-	s = TranslateBases(s)
 	return s
 }
 
