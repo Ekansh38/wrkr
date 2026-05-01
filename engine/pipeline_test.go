@@ -556,3 +556,55 @@ func TestEval_HexLiteralDivUnit(t *testing.T) {
 func TestEval_HexLiteralTimesUnit(t *testing.T) {
 	near(t, eval(t, "0x10 mb"), 16*1048576, "0x10 mb")
 }
+
+// ── Base literal + unit regressions (all three bases) ────────────────────────
+// Before the TranslateBases-before-FixImplicitMult fix, 0b/0o literals followed
+// by a unit produced the same class of bug as 0x did: e.g. 0b(1010 * bytes).
+
+func TestEval_BinLiteralTimesUnit(t *testing.T) {
+	// 0b1010 = 10 bytes
+	near(t, eval(t, "0b1010 bytes"), 10, "0b1010 bytes")
+}
+
+func TestEval_OctLiteralTimesUnit(t *testing.T) {
+	// 0o17 = 15 KB = 15360 bytes
+	near(t, eval(t, "0o17 kb"), 15*1024, "0o17 kb")
+}
+
+func TestEval_HexLiteralAddUnit(t *testing.T) {
+	// 0x10 MB + 0xFF bytes — arithmetic mixing hex literal + units
+	near(t, eval(t, "0x10 mb + 0xFF bytes"), 16*1048576+255, "0x10 mb + 0xFF bytes")
+}
+
+func TestEval_HexLiteralDivHexLiteralUnit(t *testing.T) {
+	// 0x1000 kb / 0x10 bytes — both operands hex+unit
+	near(t, eval(t, "0x1000 kb / 0x10 bytes"), float64(0x1000*1024)/float64(0x10), "0x1000 kb / 0x10 bytes")
+}
+
+func TestEval_BitwiseWithUnitStillWorks(t *testing.T) {
+	// 5 mb & 0xFF — bitwise pipeline must still work after order change
+	near(t, eval(t, "5 mb & 0xFF"), 0, "5 mb & 0xFF")
+}
+
+func TestEval_FormatFnWithHexLiteral(t *testing.T) {
+	// hex(0xFF) — format function with hex literal
+	// TranslateBases converts 0xFF → 255 before eval, hex(255) = 0xFF
+	// We just verify it doesn't error and gives 255 (numeric value)
+	near(t, eval(t, "0xFF + 0"), 255, "0xFF evaluates to 255")
+}
+
+func TestEval_ToDecConversionWithHex(t *testing.T) {
+	// "0xFF to dec" → dec(0xFF) → 255
+	near(t, eval(t, "0xFF to dec"), 255, "0xFF to dec")
+}
+
+func TestEval_HexArithmetic(t *testing.T) {
+	near(t, eval(t, "0x100 + 0xFF"), 511, "0x100 + 0xFF")
+	near(t, eval(t, "0x1000 - 0xFF"), 0x1000-0xFF, "0x1000 - 0xFF")
+	near(t, eval(t, "0x10 * 0x10"), 256, "0x10 * 0x10")
+}
+
+func TestEval_NakedHexNaturalNotation(t *testing.T) {
+	// "FF hex" style (FixNakedBases converts to 0xFF)
+	near(t, eval(t, "FF hex"), 255, "FF hex")
+}

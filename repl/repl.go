@@ -1584,7 +1584,7 @@ func Run() {
 				{"keywords", s4},
 				{"convert ", s5},
 				{"format  ", s6},
-				{"bases   ", s7},
+				{"hexdec  ", s7},
 				{"multiply", s8},
 				{"ast     ", s9},
 				{"expanded", s10},
