@@ -608,3 +608,52 @@ func TestEval_NakedHexNaturalNotation(t *testing.T) {
 	// "FF hex" style (FixNakedBases converts to 0xFF)
 	near(t, eval(t, "FF hex"), 255, "FF hex")
 }
+
+// ── ^ as exponentiation in dec mode ─────────────────────────────────────────
+
+func TestEval_Caret_Power_DecMode(t *testing.T) {
+	// In dec mode without bitwise context, ^ means pow(), not XOR.
+	// 10^3 = 1000, NOT 10 XOR 3 = 9.
+	prev := engine.CurrentMode
+	engine.CurrentMode = "dec"
+	defer func() { engine.CurrentMode = prev }()
+
+	near(t, eval(t, "10^3"), 1000, "10^3 in dec mode must be 1000 (pow), not 9 (XOR)")
+	near(t, eval(t, "2^10"), 1024, "2^10 = 1024")
+	near(t, eval(t, "3^3"), 27, "3^3 = 27")
+}
+
+func TestEval_Caret_XOR_WithHexContext(t *testing.T) {
+	// When hex literals are present, ^ is XOR even in dec mode.
+	near(t, eval(t, "0xFF ^ 0x0F"), 0xF0, "0xFF ^ 0x0F = 0xF0 (XOR with hex context)")
+}
+
+// ── 0xNN+unit regression: hex literal immediately preceding a unit ────────────
+
+func TestEval_HexLiteralNoSpaceUnit(t *testing.T) {
+	// "0x40mb" must parse as (0x40 * mb) = 64 * 1048576, not error out
+	// as "0x(40 * mb)".
+	near(t, eval(t, "0x40mb"), 64*1048576, "0x40mb = 64 MB")
+}
+
+func TestEval_HexLiteralNoSpaceUnit_Div(t *testing.T) {
+	// Regression: "0x40mb / 0x1000" previously gave "could not parse expression"
+	near(t, eval(t, "0x40mb / 0x1000"), 16384, "0x40mb / 0x1000 = 16384")
+}
+
+// ── "NNunit to format" pipeline ──────────────────────────────────────────────
+
+func TestEval_UnitToFormat_MbToHex(t *testing.T) {
+	// "64mb to hex" — convert 64 MB to hex representation.
+	// 64 * 1048576 = 67108864 = 0x4000000
+	near(t, eval(t, "64mb to hex"), 64*1048576, "64mb to hex evaluates to 67108864")
+}
+
+func TestEval_UnitToFormat_MbSpaceToHex(t *testing.T) {
+	// "64 mb to hex" (with space between number and unit)
+	near(t, eval(t, "64 mb to hex"), 64*1048576, "64 mb to hex")
+}
+
+func TestEval_UnitToFormat_GbToBin(t *testing.T) {
+	near(t, eval(t, "1gb to bin"), 1073741824, "1gb to bin")
+}

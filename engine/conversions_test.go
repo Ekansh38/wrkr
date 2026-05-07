@@ -5,6 +5,7 @@ package engine_test
 import (
 	"fmt"
 	"math"
+	"strings"
 	"testing"
 
 	"github.com/Ekansh38/wrkr/engine"
@@ -294,4 +295,18 @@ func TestMath_Floor_Ceil_Round(t *testing.T) {
 	near(t, eval(t, "floor(3.9)"), 3, "floor(3.9)")
 	near(t, eval(t, "ceil(3.1)"), 4, "ceil(3.1)")
 	near(t, eval(t, "round(3.5)"), 4, "round(3.5)")
+}
+
+func TestFormat_SmartHint_SilentForMixedUnitsLargeResult(t *testing.T) {
+	// "64 mb / 0x1000 bytes" = 16384 — dimensionless count (not kilobytes).
+	// sizeCtx=2 (mb and bytes both present) → hint must be suppressed even though
+	// result >= 1 KB. Previously showed "[16 KB]" which is wrong.
+	prev := engine.CurrentMode
+	engine.CurrentMode = "dec"
+	defer func() { engine.CurrentMode = prev }()
+
+	s := engine.FormatTerminal(16384, 2, "")
+	if strings.Contains(s, "[") || strings.Contains(s, "KB") || strings.Contains(s, "MB") {
+		t.Errorf("FormatTerminal(16384, 2, \"\") = %q, want no size hint", s)
+	}
 }

@@ -396,7 +396,13 @@ func FormatTerminal(val float64, sizeCtx SizeUnitContext, typeHint string) strin
 		}
 		coef, label := HumanReadableSize(val)
 		if label != "B" {
-			return appendType(fmt.Sprintf("%s  [%s %s]", raw, coef, label))
+			// Only show size hint when exactly one distinct unit type is present.
+			// With multiple unit types (e.g. mb / bytes) the units may cancel,
+			// making the result dimensionless — a hint would be misleading.
+			if sizeCtx == 1 {
+				return appendType(fmt.Sprintf("%s  [%s %s]", raw, coef, label))
+			}
+			return appendType(raw)
 		}
 		if sizeCtx == 1 {
 			return appendType(fmt.Sprintf("%s  [bytes]", raw))

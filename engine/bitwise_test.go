@@ -48,9 +48,19 @@ func TestRewrite_BitwiseOR(t *testing.T) {
 }
 
 func TestRewrite_BitwiseXOR(t *testing.T) {
+	// RewriteBitwiseOps always rewrites ^ as bxor; the pow() substitution
+	// happens upstream in BuildASTString when there is no bitwise context.
 	got := engine.RewriteBitwiseOps("a ^ b")
 	if got != "bxor(a, b)" {
 		t.Errorf("^ rewrite: got %q, want bxor(a, b)", got)
+	}
+}
+
+func TestRewrite_BitwiseXOR_WithContext(t *testing.T) {
+	// ^ alongside & stays as bxor even in dec mode.
+	got := engine.RewriteBitwiseOps("a & b ^ c")
+	if got != "bxor(band(a, b), c)" {
+		t.Errorf("^ rewrite (bitwise context): got %q, want bxor(band(a, b), c)", got)
 	}
 }
 
@@ -346,8 +356,9 @@ func TestEval_PageAlign(t *testing.T) {
 }
 
 func TestEval_XOR_Swap(t *testing.T) {
-	// XOR identity: (a ^ b) ^ b = a
-	near(t, eval(t, "(42 ^ 99) ^ 99"), 42, "XOR swap identity")
+	// XOR identity: bxor(bxor(a,b),b) = a. Use explicit bxor() since ^ in
+	// dec mode without bitwise context is exponentiation, not XOR.
+	near(t, eval(t, "bxor(bxor(42, 99), 99)"), 42, "XOR swap identity")
 }
 
 // ── Interaction with existing pipeline ────────────────────────────────────────

@@ -137,6 +137,21 @@ func ProcessFormatting(input string) string {
 	numPat := `(?:0x[0-9a-fA-F]+|0[bB][01]+|0[oO][0-7]+|[0-9]*\.?[0-9]+(?:e[-+]?[0-9]+)?)`
 	fmtAlt := `(?:hex(?:adecimal|idecimal)?|bin(?:ary)?|oct(?:al)?|dec(?:imal)?)`
 
+	// Pattern 0: "(number)(unit) to (format)" where unit is a known data/measurement unit.
+	// Handles "64mb to hex", "0x40 gb to bin", "64 mb to hex" → "hex((64 * mb))" etc.
+	// Must run before re1 so the unit word is not mistaken for a base annotation.
+	reUnit := regexp.MustCompile(`(?i)([-+]?` + numPat + `)\s*([a-zA-Z]+)\s+to\s+(` + fmtAlt + `)`)
+	input = reUnit.ReplaceAllStringFunc(input, func(match string) string {
+		parts := reUnit.FindStringSubmatch(match)
+		if len(parts) == 4 {
+			unit := strings.ToLower(parts[2])
+			if _, ok := UnitRates[unit]; ok {
+				return fmt.Sprintf("%s((%s * %s))", normalizeFormatFn(parts[3]), parts[1], parts[2])
+			}
+		}
+		return match
+	})
+
 	// Pattern 1 (three-token): "(number) (format1) to (format2)" → "format2(number)"
 	// This handles "0x123 hex to bin" where format1 annotates the source base.
 	re1 := regexp.MustCompile(`(?i)([-+]?` + numPat + `)\s+` + fmtAlt + `\s+to\s+(` + fmtAlt + `)`)
@@ -210,7 +225,7 @@ func FixImplicitMultiplication(input string) string {
 // TranslateBases converts 0x/0b/0o literals to float64 decimal strings so the
 // AST evaluator (which speaks only float64) can handle them.
 func TranslateBases(input string) string {
-	re := regexp.MustCompile(`(?i)\b(0x[0-9a-zA-Z]+|0b[01]+|0o[0-7]+)\b`)
+	re := regexp.MustCompile(`(?i)\b(0x[0-9a-fA-F]+|0b[01]+|0o[0-7]+)`)
 	return re.ReplaceAllStringFunc(input, func(match string) string {
 		if i, err := strconv.ParseInt(strings.ToLower(match), 0, 64); err == nil {
 			return fmt.Sprintf("%f", float64(i))
@@ -301,9 +316,21 @@ func StripFormatWrappers(input string) string {
 	}
 }
 
+// reBitwiseHintPat matches signals that ^ is being used as bitwise XOR rather
+// than exponentiation: any base-prefixed literal, bitwise operators &|~<<>>,
+// or a call to a bitwise format function (bin…/hex…/oct…).
+// Checked against the ORIGINAL expression (before TranslateBases) so 0x/0b/0o
+// prefixes are still visible.
+var reBitwiseHintPat = regexp.MustCompile(`(?i)\b0x[0-9a-fA-F]|\b0b[01]|\b0o[0-7]|[~&|]|<<|>>|\b(?:bin|hex|oct)\d*\(`)
+
 // BuildASTString runs the full preprocessing pipeline on a raw expression string,
 // producing a form that the expr evaluator can compile.
 func BuildASTString(input string) string {
+	// Decide whether ^ means XOR or power before any transformation strips
+	// the base prefixes.  In dec mode with no bitwise context, ^ → ** so the
+	// evaluator treats it as pow().
+	xorCtx := CurrentMode != "dec" || reBitwiseHintPat.MatchString(input)
+
 	s := StripNumericSeparators(input)
 	s = ProcessConversions(s)
 	s = ProcessFormatting(s)
@@ -312,6 +339,10 @@ func BuildASTString(input string) string {
 	// otherwise the regex shields "0x" but then separately rewrites "1000 bytes"
 	// → "0x(1000 * bytes)" which is unparseable.
 	s = FixImplicitMultiplication(s)
+	if !xorCtx {
+		// No bitwise context: replace ^ with ** so the evaluator treats it as pow().
+		s = strings.ReplaceAll(s, "^", "**")
+	}
 	s = RewriteBitwiseOps(s)
 	return s
 }
