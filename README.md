@@ -113,13 +113,15 @@ Standard C bitwise operators, with standard C precedence.
 |----------|------|---------|--------|
 | `a & b` | AND | `0b1100 & 0b1010` | `8` |
 | `a \| b` | OR | `0b1100 \| 0b1010` | `14` |
-| `a ^ b` | XOR | `0b1100 ^ 0b1010` | `6` |
+| `a ^ b` | XOR / pow | `0b1100 ^ 0b1010` = `6` · `10^3` = `1000` | context-sensitive (see below) |
 | `~a` | NOT | `~0` | `-1` |
 | `a << n` | left shift | `1 << 8` | `256` |
 | `a >> n` | right shift | `256 >> 4` | `16` |
 
 Precedence (high -> low): `~`, `* / + -`, `<< >>`, `&`, `^`, `|` — matching C.  
 `>>` is arithmetic (sign-preserving). `&&` and `||` (logical) are passed through unchanged.
+
+**`^` is context-sensitive.** In `dec` mode, `^` is exponentiation (`10^3 = 1000`) unless the expression contains a bitwise signal — a `0x`/`0b`/`0o` literal, a `& | ~ << >>` operator, or a `bin`/`hex`/`oct` function call. With any of those present, `^` is XOR (`0xFF ^ 0x0F = 0xF0`). In `hex`/`bin`/`oct` modes `^` is always XOR. Use `pow(a, b)` or `**` to force exponentiation when in doubt.
 
 ```
 0xFF & 0x0F                  -> 15       low nibble
@@ -551,7 +553,7 @@ All values are IEEE 754 float64 (~15–16 significant decimal digits). Integers 
 ---
 
 ### `to format` only works on simple left-hand values
-`(a + b) to hex` does not work. `to` matches a single number, identifier, or function call on the left.
+`(a + b) to hex` does not work. `to` matches a single number, identifier, function call, or `number unit` compound (e.g. `64mb to hex`) on the left.
 
 **Workaround:** `hex(a + b)` or `_ to hex` after storing the result.
 
@@ -597,12 +599,18 @@ Raw input goes through these stages before hitting the evaluator:
 1. separator strip        1_000_000 -> 1000000, 0b1011_1011 -> 0b10111011
 2. prefix normalization   \xFF -> 0xFF, ob101 -> 0b101
 3. naked base notation    FF hex -> 0xFF, 101 bin -> 0b101
-4. base conversion        0x123 hex to bin -> bin(0x123)
-5. unit conversion        50 mi to km -> (50 * (1609.344 / 1000))
-6. implicit multiply      5 mb -> (5 * 1048576)
-7. bitwise rewrite        a & b -> band(a, b), ~x -> bnot(x)
-8. base translation       0xFF -> 255.000000
-9. AST eval               expr-lang/expr, proper operator precedence
+4. unit conversion        50 mi to km -> (50 * (1609.344 / 1000))
+5. format conversion      64mb to hex -> hex((64 * mb)), 0x123 hex to bin -> bin(0x123)
+6. base translation       0xFF -> 255.000000, 0b101 -> 5.000000
+7. implicit multiply      5 mb -> (5 * mb), 0x40mb -> (64 * mb)
+8. ^ disambiguation       dec mode + no bitwise context: ^ -> ** (pow)
+9. bitwise rewrite        a & b -> band(a, b), ~x -> bnot(x), a ^ b -> bxor(a, b)
+10. AST eval              expr-lang/expr, proper operator precedence
 ```
 
-All values are float64 internally. Units are multipliers against a baseline (bytes for data, meters for distance).
+Steps 1–3 run in the REPL before the expression reaches the core pipeline. All values are float64 internally. Units are multipliers against a baseline (bytes for data, meters for distance).
+
+**Key ordering rules:**
+- Base translation (step 6) runs before implicit multiply (step 7) so `0x40mb` converts to `64.0mb` then `(64 * mb)`, never `0x(40 * mb)`.
+- Format conversion (step 5) runs before base translation so `64mb to hex` is rewritten to `hex((64 * mb))` while `mb` is still a recognisable name.
+- `^` disambiguation (step 8) checks the **original** input (before base translation stripped `0x`/`0b` prefixes) to decide whether `^` is pow or XOR.
