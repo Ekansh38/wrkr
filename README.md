@@ -1,18 +1,10 @@
 # wrkr
 
-> AI generated. Personal use. No guarantees.
-
-Terminal calculator that knows units, remembers variables, and copies results to clipboard. Built because `python3 -c "print(128*1024*1024/4096)"` is too confusing and weird.
+> vibe-coded.
 
 **[Install](#install) · [Base input](#base-input) · [Base conversion](#base-conversion) · [Bitwise](#bitwise-operators) · [Output modes](#output-modes) · [Type mode](#type-mode) · [Variables](#variables) · [Drill](#drill-mode) · [Use cases](#use-cases)**
 
 ---
-
-## Why
-
-`bc` doesn't know what a megabyte is. Spotlight doesn't remember your block size. This does.
-
-Filesystem/OS work means constant block count math, B-tree depth estimates, working set sizing. One-liner Python works but the context switch is annoying. This lives in the terminal and already has the units loaded.
 
 ## Install
 
